@@ -8,6 +8,7 @@ export const config = {
     },
     chatwoot: {
         baseUrl: "/chatwoot-api/api/v1/accounts/1",
-        apiToken: "9fruvRnVdfiXXJNoWbPkY3HY"
+        apiToken: import.meta.env.VITE_CHATWOOT_API_TOKEN,
+        publicUrl: import.meta.env.VITE_CHATWOOT_BASE_URL
     }
 };

@@ -9,6 +9,7 @@ import { MessageSquare, ExternalLink, User, Clock, Tag, Search, ChevronLeft, Che
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { config } from '@/config';
 
 const ChatwootPage = () => {
     const [conversations, setConversations] = useState<ChatwootConversation[]>([]);
@@ -67,7 +68,7 @@ const ChatwootPage = () => {
     };
 
     const openInChatwoot = (id: number) => {
-        window.open(`https://chatwoot-production-9f20.up.railway.app/app/accounts/2/conversations/${id}`, '_blank');
+        window.open(`${config.chatwoot.publicUrl}/app/accounts/1/conversations/${id}`, '_blank');
     };
 
     return (
