@@ -3,11 +3,11 @@
 
 export const config = {
     supabase: {
-        url: "https://zmaexfvibldgmyfwqbhz.supabase.co",
-        anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InptYWV4ZnZpYmxkZ215ZndxYmh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE2MTYxOTQsImV4cCI6MjA4NzE5MjE5NH0.OPWtExVEcmT1jr8pi4xW5wH1-f4XZBs9k0Ph4a7vyso"
+        url: "https://xxdazmikvjsiwkcfwpoj.supabase.co",
+        anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh4ZGF6bWlrdmpzaXdrY2Z3cG9qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI0Njk5MTcsImV4cCI6MjA4ODA0NTkxN30._goWhT1VeT-2oknYAy6IOtcVmdVNkx6k_CbPnX4w0lU"
     },
     chatwoot: {
-        baseUrl: "/chatwoot-api/api/v1/accounts/2",
-        apiToken: "gAxHrNc231fZEGXA8jqDpS3N"
+        baseUrl: "/chatwoot-api/api/v1/accounts/1",
+        apiToken: "9fruvRnVdfiXXJNoWbPkY3HY"
     }
 };
