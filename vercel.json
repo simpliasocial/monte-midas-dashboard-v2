@@ -2,7 +2,7 @@
     "rewrites": [
         {
             "source": "/chatwoot-api/:path*",
-            "destination": "https://chatwoot-production-9f20.up.railway.app/:path*"
+            "destination": "https://chatwoot-production-3ffd.up.railway.app/:path*"
         },
         {
             "source": "/(.*)",
