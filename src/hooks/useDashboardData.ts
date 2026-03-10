@@ -32,8 +32,10 @@ export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek
         responseTime: 0
     });
 
-    const fetchData = async () => {
-        setLoading(true);
+    const fetchData = async (isBackground = false) => {
+        if (!isBackground) {
+            setLoading(true);
+        }
         try {
             // 1. Determine Global Filter Range (for KPIs, Funnel, etc.)
             let globalStart: Date;
@@ -446,22 +448,15 @@ export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek
 
             kpiConversations.forEach(conv => {
                 let responseTimeMinutes = 0;
+                let isValidResponse = false;
 
                 // Method 1: Use first_reply_created_at if available
                 if (conv.first_reply_created_at && conv.created_at) {
                     const responseTimeSeconds = conv.first_reply_created_at - conv.created_at;
                     responseTimeMinutes = responseTimeSeconds / 60;
-                    totalResponseTime += responseTimeMinutes;
-                    conversationsWithResponse++;
+                    isValidResponse = true;
                 }
-                // Method 2: Use waiting_since (time since last customer message)
-                else if (conv.waiting_since && conv.created_at) {
-                    const responseTimeSeconds = conv.waiting_since - conv.created_at;
-                    responseTimeMinutes = responseTimeSeconds / 60;
-                    totalResponseTime += responseTimeMinutes;
-                    conversationsWithResponse++;
-                }
-                // Method 3: Calculate from messages array if available
+                // Method 2: Calculate from messages array if available
                 else if (conv.messages && conv.messages.length > 0) {
                     const firstAgentMessage = conv.messages.find(msg =>
                         msg.message_type === 'outgoing' || msg.sender?.type === 'agent_bot'
@@ -472,10 +467,16 @@ export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek
                         if (firstAgentTime) {
                             const responseTimeSeconds = firstAgentTime - conv.created_at;
                             responseTimeMinutes = responseTimeSeconds / 60;
-                            totalResponseTime += responseTimeMinutes;
-                            conversationsWithResponse++;
+                            isValidResponse = true;
                         }
                     }
+                }
+
+                // Sólo contar tiempos válidos y descartar outliers masivos (ej. > 60 mins) 
+                // que representan respuestas manuales tardías y no el tiempo de respuesta real del bot.
+                if (isValidResponse && responseTimeMinutes >= 0 && responseTimeMinutes <= 60) {
+                    totalResponseTime += responseTimeMinutes;
+                    conversationsWithResponse++;
                 }
             });
 
@@ -520,10 +521,12 @@ export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek
     };
 
     useEffect(() => {
-        fetchData();
-        const interval = setInterval(fetchData, 30000); // Poll every 30s
+        fetchData(false);
+        const interval = setInterval(() => fetchData(true), 30000); // Poll every 30s in background
         return () => clearInterval(interval);
     }, [selectedMonth, selectedWeek]); // Re-fetch when month or week changes
 
-    return { loading, error, data };
+    const refetch = () => fetchData(false);
+
+    return { loading, error, data, refetch };
 };

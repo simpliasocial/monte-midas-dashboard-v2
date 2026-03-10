@@ -1,4 +1,4 @@
-import { Users, Target, Calendar, TrendingUp, Zap, Database, Clock, MessageSquare, AlertTriangle, CheckCircle, Filter, BarChart3, LogOut, DollarSign } from "lucide-react";
+import { Users, Target, Calendar, TrendingUp, Zap, Database, Clock, MessageSquare, AlertTriangle, CheckCircle, Filter, BarChart3, LogOut, DollarSign, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,7 +34,7 @@ const ALL_TIME_VALUE = "-1";
 const Index = () => {
   const [selectedMonth, setSelectedMonth] = useState<Date | null>(null); // null means "All Time"
   const [selectedWeek, setSelectedWeek] = useState<string>("1");
-  const { loading, error, data } = useDashboardData(selectedMonth, selectedWeek);
+  const { loading, error, data, refetch } = useDashboardData(selectedMonth, selectedWeek);
 
   if (loading) {
     return (
@@ -71,6 +71,9 @@ const Index = () => {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
         <div className="flex items-center gap-4">
+          <Button variant="outline" size="icon" onClick={refetch} title="Actualizar datos">
+            <RefreshCw className="h-4 w-4" />
+          </Button>
           <Select
             value={selectedMonth ? selectedMonth.getMonth().toString() : ALL_TIME_VALUE}
             onValueChange={(value) => {
@@ -359,7 +362,7 @@ const Index = () => {
               <div>
                 <p className="font-medium text-foreground">SLA Cumplido</p>
                 <p className="text-sm text-muted-foreground">
-                  Tiempo de respuesta promedio dentro del objetivo (≤5 min)
+                  Tiempo de respuesta promedio dentro del objetivo (≤6 min)
                 </p>
               </div>
             </div>
@@ -373,11 +376,7 @@ const Index = () => {
         subtitle={`Evolución - ${trendPeriodLabel}`}
         icon={BarChart3}
       >
-        <TrendChart
-          data={monthlyTrend}
-          selectedMonth={selectedMonth}
-          onMonthChange={setSelectedMonth}
-        />
+        <TrendChart data={monthlyTrend} />
         <div className="mt-4 flex items-center justify-center gap-8">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-primary" />

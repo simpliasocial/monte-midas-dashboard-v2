@@ -7,13 +7,13 @@ interface ResponseTimeGaugeProps {
 
 export function ResponseTimeGauge({ value, className }: ResponseTimeGaugeProps) {
   const getStatus = (val: number) => {
-    if (val <= 2) return { color: "text-success", bg: "bg-success", label: "Excelente", ringColor: "stroke-success" };
-    if (val <= 5) return { color: "text-warning", bg: "bg-warning", label: "Aceptable", ringColor: "stroke-warning" };
+    if (val <= 3) return { color: "text-success", bg: "bg-success", label: "Excelente", ringColor: "stroke-success" };
+    if (val <= 6) return { color: "text-warning", bg: "bg-warning", label: "Aceptable", ringColor: "stroke-warning" };
     return { color: "text-destructive", bg: "bg-destructive", label: "Crítico", ringColor: "stroke-destructive" };
   };
 
   const status = getStatus(value);
-  const maxValue = 10;
+  const maxValue = 12; // Adjusted max value for the gauge scale
   const percentage = Math.min((value / maxValue) * 100, 100);
   const circumference = 2 * Math.PI * 45;
   const strokeDashoffset = circumference - (percentage / 100) * circumference * 0.75;
@@ -59,7 +59,7 @@ export function ResponseTimeGauge({ value, className }: ResponseTimeGaugeProps) 
         <span className={cn("text-sm font-medium", status.color)}>{status.label}</span>
       </div>
       <p className="mt-1 text-xs text-muted-foreground text-center">
-        SLA esperado ≤5 min
+        SLA esperado ≤6 min
       </p>
     </div>
   );
