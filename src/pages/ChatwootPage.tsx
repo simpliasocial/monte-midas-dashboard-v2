@@ -23,7 +23,9 @@ const ChatwootPage = () => {
         'b2',
         'c1',
         'cita_agendada',
-        'leads_entrantes'
+        'cita_agendadajess',
+        'leads_entrantes',
+        'venta_exitosa'
     ]);
     const [selectedLabel, setSelectedLabel] = useState<string>('all');
     const [meta, setMeta] = useState<any>({});

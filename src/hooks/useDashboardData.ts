@@ -1,39 +1,73 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { chatwootService } from '../services/ChatwootService';
 
+const CACHE_KEY = 'implanta_dashboard_cache';
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+interface CachedData {
+    timestamp: number;
+    data: any;
+}
+
+const getDefaultData = () => ({
+    kpis: {
+        totalLeads: 0,
+        leadsInteresados: 0,
+        citasAgendadas: 0,
+        deseaCreditoCount: 0,
+        noCalifican: 0,
+        tasaAgendamiento: 0,
+        tasaDescarte: 0,
+        tasaRespuesta: 0,
+        gananciaMensual: 0,
+        gananciaTotal: 0
+    },
+    funnelData: [] as any[],
+    recentAppointments: [] as any[],
+    channelData: [] as any[],
+    weeklyTrend: [] as any[],
+    monthlyTrend: [] as any[],
+    disqualificationReasons: [] as any[],
+    dataCapture: {
+        completionRate: 0,
+        fieldRates: [] as any[],
+        incomplete: 0,
+        funnelDropoff: 0
+    },
+    responseTime: 0,
+    availableChannels: [] as string[],
+    conversationsWithChannel: [] as any[]
+});
+
+const loadFromCache = (): any | null => {
+    try {
+        const raw = localStorage.getItem(CACHE_KEY);
+        if (!raw) return null;
+        const cached: CachedData = JSON.parse(raw);
+        // Return cache even if stale - we'll refresh in background
+        return cached.data;
+    } catch {
+        return null;
+    }
+};
+
+const saveToCache = (data: any) => {
+    try {
+        const cached: CachedData = { timestamp: Date.now(), data };
+        localStorage.setItem(CACHE_KEY, JSON.stringify(cached));
+    } catch {
+        // localStorage full or unavailable - ignore
+    }
+};
+
 export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek: string = "1") => {
-    const [loading, setLoading] = useState(true);
+    const cachedData = useRef(loadFromCache());
+    const [loading, setLoading] = useState(!cachedData.current);
     const [error, setError] = useState<string | null>(null);
-    const [data, setData] = useState({
-        kpis: {
-            totalLeads: 0,
-            leadsInteresados: 0,
-            citasAgendadas: 0,
-            deseaCreditoCount: 0,
-            noCalifican: 0,
-            tasaAgendamiento: 0,
-            tasaDescarte: 0,
-            tasaRespuesta: 0,
-            gananciaMensual: 0,
-            gananciaTotal: 0
-        },
-        funnelData: [] as any[],
-        recentAppointments: [] as any[],
-        channelData: [] as any[],
-        weeklyTrend: [] as any[],
-        monthlyTrend: [] as any[],
-        disqualificationReasons: [] as any[],
-        dataCapture: {
-            completionRate: 0,
-            fieldRates: [] as any[],
-            incomplete: 0,
-            funnelDropoff: 0
-        },
-        responseTime: 0
-    });
+    const [data, setData] = useState(cachedData.current || getDefaultData());
 
     const fetchData = async (isBackground = false) => {
-        if (!isBackground) {
+        if (!isBackground && !cachedData.current) {
             setLoading(true);
         }
         try {
@@ -64,32 +98,49 @@ export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek
                 trendEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
             }
 
-            // 3. Fetch ALL conversations (Client-side filtering is safer for "February = 0" requirement)
-            // We fetch 'all' status to get everything.
-            // 3. Fetch ALL conversations (Iterate through pages)
-            let allConversationsRaw: any[] = [];
-            let page = 1;
-            let hasMore = true;
+            // 3. Fetch conversations + inboxes in PARALLEL
+            // First page + inboxes concurrently
+            const [firstPageResponse, inboxes] = await Promise.all([
+                chatwootService.getConversations({ status: 'all', page: 1 }),
+                chatwootService.getInboxes()
+            ]);
 
-            while (hasMore) {
-                const response = await chatwootService.getConversations({ status: 'all', page });
-                const conversations = response.payload;
+            let allConversationsRaw: any[] = [...firstPageResponse.payload];
 
-                if (conversations.length === 0) {
-                    hasMore = false;
-                } else {
-                    allConversationsRaw = [...allConversationsRaw, ...conversations];
-                    // Check if we reached the last page
-                    // If the number of items returned is less than typical page size (usually 25), we are done.
-                    // Or check meta if available, but checking count is robust enough for now.
-                    // Chatwoot default page size is 25.
-                    if (conversations.length < 25) {
-                        hasMore = false;
-                    } else {
-                        page++;
+            // If first page is full, fetch remaining pages concurrently
+            if (firstPageResponse.payload.length >= 25) {
+                // Estimate total pages needed, fetch in batches of 5 concurrent requests
+                let currentPage = 2;
+                let keepFetching = true;
+
+                while (keepFetching) {
+                    // Fire 5 pages at once
+                    const pagePromises = [];
+                    for (let i = 0; i < 5; i++) {
+                        pagePromises.push(
+                            chatwootService.getConversations({ status: 'all', page: currentPage + i })
+                        );
                     }
+
+                    const results = await Promise.all(pagePromises);
+
+                    for (const result of results) {
+                        if (result.payload.length === 0) {
+                            keepFetching = false;
+                            break;
+                        }
+                        allConversationsRaw = [...allConversationsRaw, ...result.payload];
+                        if (result.payload.length < 25) {
+                            keepFetching = false;
+                            break;
+                        }
+                    }
+
+                    currentPage += 5;
                 }
             }
+
+            console.log(`Fetched ${allConversationsRaw.length} conversations total`);
 
             // Helper to parse "monto_operacion"
             const parseMonto = (val: any): number => {
@@ -197,10 +248,13 @@ export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek
             const b2Count = countByLabel('b2');
             const c1Count = countByLabel('c1');
             const citasAgendadas = countByLabel('cita_agendada');
+            const citasAgendadasJess = countByLabel('cita_agendadajess');
+            const ventaExitosa = countByLabel('venta_exitosa');
+            const totalCitas = citasAgendadas + citasAgendadasJess;
 
             // KPIs simplificados - NUEVA LÓGICA
             const leadsInteresados = a_Count; // Solo a_ = clientes que piden/aceptan agendar
-            const tasaAgendamiento = totalLeads > 0 ? Math.round((citasAgendadas / totalLeads) * 100) : 0;
+            const tasaAgendamiento = totalLeads > 0 ? Math.round((totalCitas / totalLeads) * 100) : 0;
             const tasaDescarte = totalLeads > 0 ? Math.round((c1Count / totalLeads) * 100) : 0;
 
             // Calculate Response Rate (Tasa de Respuesta)
@@ -209,7 +263,7 @@ export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek
 
             // Recent Appointments (from filtered data)
             const recentAppointments = kpiConversations
-                .filter(c => c.labels && c.labels.includes('cita_agendada'))
+                .filter(c => c.labels && (c.labels.includes('cita_agendada') || c.labels.includes('cita_agendadajess')))
                 .slice(0, 5)
                 .map(conv => {
                     // Buscar datos primero en contact attributes, luego en conversation attributes
@@ -234,7 +288,9 @@ export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek
                 { label: "b1", value: b1Count, percentage: totalLeads > 0 ? Math.round((b1Count / totalLeads) * 100) : 0, color: "hsl(142, 60%, 45%)" },
                 { label: "b2", value: b2Count, percentage: totalLeads > 0 ? Math.round((b2Count / totalLeads) * 100) : 0, color: "hsl(142, 60%, 55%)" },
                 { label: "cita_agendada", value: citasAgendadas, percentage: totalLeads > 0 ? Math.round((citasAgendadas / totalLeads) * 100) : 0, color: "hsl(45, 93%, 58%)" },
+                { label: "cita_agendadajess", value: citasAgendadasJess, percentage: totalLeads > 0 ? Math.round((citasAgendadasJess / totalLeads) * 100) : 0, color: "hsl(35, 93%, 50%)" },
                 { label: "c1", value: c1Count, percentage: totalLeads > 0 ? Math.round((c1Count / totalLeads) * 100) : 0, color: "hsl(0, 70%, 60%)" },
+                { label: "venta_exitosa", value: ventaExitosa, percentage: totalLeads > 0 ? Math.round((ventaExitosa / totalLeads) * 100) : 0, color: "hsl(160, 84%, 39%)" },
             ];
 
             // Debugging: Log all unique labels found to help verify KPIs
@@ -245,26 +301,32 @@ export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek
             console.log('Leads Interesados Count:', leadsInteresados);
 
             // Channel Breakdown
-            // Fetch inboxes to map IDs to Names/Types
-            const inboxes = await chatwootService.getInboxes();
+            // Inboxes already fetched in parallel above
             const inboxMap = new Map(inboxes.map((inbox: any) => [inbox.id, inbox]));
 
+            // Helper: resolve channel name from inbox_id
+            const getChannelName = (inboxId: number): string => {
+                const inbox = inboxMap.get(inboxId);
+                if (!inbox) return 'Otros';
+                const type = inbox.channel_type;
+                if (type === 'Channel::Whatsapp') return 'WhatsApp';
+                if (type === 'Channel::FacebookPage') return 'Facebook';
+                if (type === 'Channel::Instagram') return 'Instagram';
+                return inbox.name;
+            };
+
+            // Attach channel name to each conversation for frontend filtering
+            const conversationsWithChannel = kpiConversations.map(conv => ({
+                ...conv,
+                _channelName: getChannelName(conv.inbox_id)
+            }));
+
             const channelCounts = new Map<string, number>();
-            kpiConversations.forEach(conv => {
-                const inbox = inboxMap.get(conv.inbox_id);
-                let channelName = 'Otros';
-
-                if (inbox) {
-                    // Map channel type to display name
-                    const type = inbox.channel_type;
-                    if (type === 'Channel::Whatsapp') channelName = 'WhatsApp';
-                    else if (type === 'Channel::FacebookPage') channelName = 'Facebook'; // Could be Messenger or Instagram depending on config, but usually FB
-                    else if (type === 'Channel::Instagram') channelName = 'Instagram'; // If specific Instagram channel exists
-                    else channelName = inbox.name; // Fallback to inbox name
-                }
-
-                channelCounts.set(channelName, (channelCounts.get(channelName) || 0) + 1);
+            conversationsWithChannel.forEach(conv => {
+                channelCounts.set(conv._channelName, (channelCounts.get(conv._channelName) || 0) + 1);
             });
+
+            const availableChannels = Array.from(channelCounts.keys()).sort();
 
             const channelData = Array.from(channelCounts.entries()).map(([name, count]) => {
                 let icon = "MessageCircle";
@@ -292,21 +354,15 @@ export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek
 
             // If no data, show empty state or default
             if (channelData.length === 0 && totalLeads > 0) {
-                // Fallback if something went wrong with mapping but we have leads
                 channelData.push({ name: "Desconocido", count: totalLeads, percentage: 100, icon: "HelpCircle", color: "bg-gray-400" });
             }
 
             // 5. Weekly Trend Calculation (Specific Week of Selected Month)
             const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-            const weeklyTrendMap = new Map<string, { leads: number; citas: number }>();
-            days.forEach(day => weeklyTrendMap.set(day, { leads: 0, citas: 0 }));
+            const weeklyTrendMap = new Map<string, { leads: number; leads_entrantes: number; a_: number; b1: number; b2: number; cita_agendada: number; cita_agendadajess: number; c1: number; venta_exitosa: number }>();
+            days.forEach(day => weeklyTrendMap.set(day, { leads: 0, leads_entrantes: 0, a_: 0, b1: 0, b2: 0, cita_agendada: 0, cita_agendadajess: 0, c1: 0, venta_exitosa: 0 }));
 
             // Determine the date range for the selected week
-            // Logic: trendStart is the 1st of the month (or current month).
-            // We need to find the start and end dates of "Week X" within that month.
-            // Week 1 starts on trendStart.
-            // But we need to align with "Sem 1" logic from getWeekNumber.
-
             const getWeekNumber = (d: Date) => {
                 const firstDayOfMonth = new Date(d.getFullYear(), d.getMonth(), 1);
                 const pastDaysOfMonth = (d.getTime() - firstDayOfMonth.getTime()) / 86400000;
@@ -317,7 +373,6 @@ export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek
             const targetWeek = parseInt(selectedWeek);
             const weeklyConversations = allConversationsRaw.filter(conv => {
                 const d = new Date(conv.timestamp * 1000);
-                // Must be within the trend month AND match the week number
                 if (d >= trendStart && d <= trendEnd) {
                     return getWeekNumber(d) === targetWeek;
                 }
@@ -341,21 +396,30 @@ export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek
                 const current = weeklyTrendMap.get(dayName)!;
 
                 current.leads++;
-                if (conv.labels && conv.labels.includes('cita_agendada')) {
-                    current.citas++;
-                }
+                const labels = ['leads_entrantes', 'a_', 'b1', 'b2', 'cita_agendada', 'cita_agendadajess', 'c1', 'venta_exitosa'] as const;
+                labels.forEach(label => {
+                    if (conv.labels && conv.labels.includes(label)) {
+                        current[label]++;
+                    }
+                });
                 weeklyTrendMap.set(dayName, current);
             });
 
             const weeklyTrend = days.map(day => {
                 const dateNum = dayToDateMap.get(day);
-                // If date exists for this day in the selected week, append it (e.g., "Lun 20")
-                // Otherwise keep just the day name (e.g. for days outside the month boundary)
                 const label = dateNum ? `${day} ${dateNum}` : day;
+                const d = weeklyTrendMap.get(day)!;
                 return {
                     week: label,
-                    leads: weeklyTrendMap.get(day)!.leads,
-                    citas: weeklyTrendMap.get(day)!.citas
+                    leads: d.leads,
+                    leads_entrantes: d.leads_entrantes,
+                    a_: d.a_,
+                    b1: d.b1,
+                    b2: d.b2,
+                    cita_agendada: d.cita_agendada,
+                    cita_agendadajess: d.cita_agendadajess,
+                    c1: d.c1,
+                    venta_exitosa: d.venta_exitosa
                 };
             });
 
@@ -378,7 +442,7 @@ export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek
                     const current = monthlyTrendMap.get(week)!;
                     current.leads++;
                     if (conv.labels && (conv.labels.includes('a_') || conv.labels.includes('b1') || conv.labels.includes('b2'))) current.sqls++;
-                    if (conv.labels && conv.labels.includes('cita_agendada')) current.citas++;
+                    if (conv.labels && (conv.labels.includes('cita_agendada') || conv.labels.includes('cita_agendadajess'))) current.citas++;
                     monthlyTrendMap.set(week, current);
                 }
             });
@@ -392,9 +456,9 @@ export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek
                 { reason: "Descartados (C1)", count: c1Count, percentage: 100 },
             ];
 
-            // Data Capture Stats - Incluir a_, b1, b2, cita_agendada
+            // Data Capture Stats - Incluir a_, b1, b2, cita_agendada, cita_agendadajess
             const targetConversations = kpiConversations.filter(c =>
-                c.labels && (c.labels.includes('a_') || c.labels.includes('b1') || c.labels.includes('b2') || c.labels.includes('cita_agendada'))
+                c.labels && (c.labels.includes('a_') || c.labels.includes('b1') || c.labels.includes('b2') || c.labels.includes('cita_agendada') || c.labels.includes('cita_agendadajess'))
             );
             const totalTarget = targetConversations.length;
 
@@ -490,7 +554,7 @@ export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek
                 averageResponseTime: responseTime.toFixed(2) + ' min'
             });
 
-            setData({
+            const newData = {
                 kpis: {
                     totalLeads,
                     leadsInteresados,
@@ -510,23 +574,34 @@ export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek
                 monthlyTrend,
                 disqualificationReasons,
                 dataCapture,
-                responseTime
-            });
+                responseTime,
+                availableChannels,
+                conversationsWithChannel
+            };
+
+            setData(newData);
+            saveToCache(newData);
             setLoading(false);
         } catch (err) {
             console.error(err);
-            setError('Failed to fetch dashboard data');
+            // Only show error if we don't have cached data to display
+            if (!cachedData.current) {
+                setError('Failed to fetch dashboard data');
+            }
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        fetchData(false);
-        const interval = setInterval(() => fetchData(true), 30000); // Poll every 30s in background
+        fetchData(!!cachedData.current); // If we have cache, fetch in background
+        const interval = setInterval(() => fetchData(true), 60000); // Poll every 60s in background
         return () => clearInterval(interval);
     }, [selectedMonth, selectedWeek]); // Re-fetch when month or week changes
 
-    const refetch = () => fetchData(false);
+    const refetch = () => {
+        cachedData.current = null; // Force showing loader
+        fetchData(false);
+    };
 
     return { loading, error, data, refetch };
 };

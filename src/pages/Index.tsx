@@ -34,6 +34,7 @@ const ALL_TIME_VALUE = "-1";
 const Index = () => {
   const [selectedMonth, setSelectedMonth] = useState<Date | null>(null); // null means "All Time"
   const [selectedWeek, setSelectedWeek] = useState<string>("1");
+  const [selectedChannel, setSelectedChannel] = useState<string>("all");
   const { loading, error, data, refetch } = useDashboardData(selectedMonth, selectedWeek);
 
   if (loading) {
@@ -52,7 +53,31 @@ const Index = () => {
     );
   }
 
-  const { kpis, funnelData, recentAppointments, channelData, weeklyTrend, monthlyTrend, disqualificationReasons, dataCapture, responseTime } = data;
+  const { kpis, funnelData, recentAppointments, channelData, weeklyTrend, monthlyTrend, disqualificationReasons, dataCapture, responseTime, availableChannels, conversationsWithChannel } = data;
+
+  // Compute filtered funnel data based on selected channel
+  const filteredFunnelData = (() => {
+    if (selectedChannel === "all") return funnelData;
+
+    const filtered = conversationsWithChannel.filter(
+      (c: any) => c._channelName === selectedChannel
+    );
+    const total = filtered.length;
+
+    const countLabel = (label: string) =>
+      filtered.filter((c: any) => c.labels && c.labels.includes(label)).length;
+
+    return [
+      { label: "leads_entrantes", value: countLabel('leads_entrantes'), percentage: total > 0 ? Math.round((countLabel('leads_entrantes') / total) * 100) : 0, color: "hsl(200, 70%, 50%)" },
+      { label: "a_", value: countLabel('a_'), percentage: total > 0 ? Math.round((countLabel('a_') / total) * 100) : 0, color: "hsl(224, 62%, 32%)" },
+      { label: "b1", value: countLabel('b1'), percentage: total > 0 ? Math.round((countLabel('b1') / total) * 100) : 0, color: "hsl(142, 60%, 45%)" },
+      { label: "b2", value: countLabel('b2'), percentage: total > 0 ? Math.round((countLabel('b2') / total) * 100) : 0, color: "hsl(142, 60%, 55%)" },
+      { label: "cita_agendada", value: countLabel('cita_agendada'), percentage: total > 0 ? Math.round((countLabel('cita_agendada') / total) * 100) : 0, color: "hsl(45, 93%, 58%)" },
+      { label: "cita_agendadajess", value: countLabel('cita_agendadajess'), percentage: total > 0 ? Math.round((countLabel('cita_agendadajess') / total) * 100) : 0, color: "hsl(35, 93%, 50%)" },
+      { label: "c1", value: countLabel('c1'), percentage: total > 0 ? Math.round((countLabel('c1') / total) * 100) : 0, color: "hsl(0, 70%, 60%)" },
+      { label: "venta_exitosa", value: countLabel('venta_exitosa'), percentage: total > 0 ? Math.round((countLabel('venta_exitosa') / total) * 100) : 0, color: "hsl(160, 84%, 39%)" },
+    ];
+  })();
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('es-US', { style: 'currency', currency: 'USD' }).format(value);
@@ -178,11 +203,24 @@ const Index = () => {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
         <SectionCard
           title="Funnel Principal"
-          subtitle={`Conversión - ${periodLabel}`}
+          subtitle={`Conversión - ${periodLabel}${selectedChannel !== 'all' ? ` · ${selectedChannel}` : ''}`}
           icon={Filter}
           className="xl:col-span-2"
+          action={
+            <Select value={selectedChannel} onValueChange={setSelectedChannel}>
+              <SelectTrigger className="w-[160px] h-8">
+                <SelectValue placeholder="Canal" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los canales</SelectItem>
+                {availableChannels.map((ch: string) => (
+                  <SelectItem key={ch} value={ch}>{ch}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          }
         >
-          <FunnelChart stages={funnelData} />
+          <FunnelChart stages={filteredFunnelData} />
         </SectionCard>
 
         <div className="space-y-4">
@@ -245,15 +283,23 @@ const Index = () => {
           }
         >
           <WeeklyTrend data={weeklyTrend} />
-          <div className="mt-4 flex items-center justify-center gap-6">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-primary" />
-              <span className="text-sm text-muted-foreground">Leads</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-accent" />
-              <span className="text-sm text-muted-foreground">Citas</span>
-            </div>
+          <div className="mt-4 flex items-center justify-center gap-4 flex-wrap">
+            {[
+              { color: "bg-[hsl(224,62%,32%)]", label: "Leads (Total)" },
+              { color: "bg-[hsl(200,70%,50%)]", label: "leads_entrantes" },
+              { color: "bg-[hsl(260,60%,50%)]", label: "a_" },
+              { color: "bg-[hsl(142,60%,45%)]", label: "b1" },
+              { color: "bg-[hsl(142,60%,55%)]", label: "b2" },
+              { color: "bg-[hsl(45,93%,48%)]", label: "cita_agendada" },
+              { color: "bg-[hsl(35,93%,50%)]", label: "cita_agendadajess" },
+              { color: "bg-[hsl(0,70%,60%)]", label: "c1" },
+              { color: "bg-[hsl(160,84%,39%)]", label: "venta_exitosa" },
+            ].map(({ color, label }) => (
+              <div key={label} className="flex items-center gap-1.5">
+                <div className={`w-2.5 h-2.5 rounded-full ${color}`} />
+                <span className="text-xs text-muted-foreground">{label}</span>
+              </div>
+            ))}
           </div>
         </SectionCard>
       </div>
@@ -285,13 +331,6 @@ const Index = () => {
                 <p className="text-3xl font-bold text-success font-display">{kpis.totalLeads > 0 ? Math.round((kpis.leadsInteresados / kpis.totalLeads) * 100) : 0}%</p>
                 <p className="text-sm text-muted-foreground">Tasa de Interés</p>
               </div>
-            </div>
-            <div className="p-4 rounded-lg bg-primary/5 border border-primary/10">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">Tiempo Promedio de Calificación</span>
-                <Clock className="h-4 w-4 text-primary" />
-              </div>
-              <p className="text-2xl font-bold text-primary font-display">0 min</p>
             </div>
           </div>
         </SectionCard>
