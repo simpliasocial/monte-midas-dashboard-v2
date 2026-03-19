@@ -43,6 +43,7 @@ export const chatwootService = {
         since?: string;
         until?: string;
         labels?: string[];
+        inbox_id?: number | string;
     } = {}): Promise<{ payload: ChatwootConversation[]; meta: any }> => {
         try {
             // If 'q' is present, we perform a Contact Search first to find the specific person
@@ -83,6 +84,13 @@ export const chatwootService = {
                     );
                 }
 
+                // In-memory filter for inbox_id if present
+                if (params.inbox_id) {
+                    allConversations = allConversations.filter(conv =>
+                        conv.inbox_id === Number(params.inbox_id)
+                    );
+                }
+
                 return {
                     payload: allConversations,
                     meta: {
@@ -104,6 +112,7 @@ export const chatwootService = {
                     since: params.since,
                     until: params.until,
                     labels: params.labels ? params.labels.join(',') : undefined,
+                    inbox_id: params.inbox_id,
                 },
             });
             return response.data.data;
