@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { LogOut, LayoutDashboard, MessageSquare } from 'lucide-react';
+import { LogOut, LayoutDashboard, MessageSquare, Download } from 'lucide-react';
 import Index from '@/pages/Index';
 import ChatwootPage from '@/pages/ChatwootPage';
+import ReportsPage from '@/pages/ReportsPage';
 
 const DashboardLayout = () => {
     const [activeTab, setActiveTab] = useState('dashboard');
@@ -30,7 +31,7 @@ const DashboardLayout = () => {
                 </div>
 
                 <Tabs defaultValue="dashboard" value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-                    <TabsList className="grid w-full max-w-md grid-cols-2">
+                    <TabsList className="grid w-full max-w-2xl grid-cols-3">
                         <TabsTrigger value="dashboard" className="flex items-center gap-2">
                             <LayoutDashboard className="h-4 w-4" />
                             Dashboard
@@ -38,6 +39,10 @@ const DashboardLayout = () => {
                         <TabsTrigger value="chats" className="flex items-center gap-2">
                             <MessageSquare className="h-4 w-4" />
                             Chats Chatwoot
+                        </TabsTrigger>
+                        <TabsTrigger value="reportes" className="flex items-center gap-2">
+                            <Download className="h-4 w-4" />
+                            Reportes CSV
                         </TabsTrigger>
                     </TabsList>
 
@@ -47,6 +52,10 @@ const DashboardLayout = () => {
 
                     <TabsContent value="chats" className="space-y-6">
                         <ChatwootPage />
+                    </TabsContent>
+
+                    <TabsContent value="reportes" className="space-y-6">
+                        <ReportsPage />
                     </TabsContent>
                 </Tabs>
             </div>

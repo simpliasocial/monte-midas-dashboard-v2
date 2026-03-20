@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MessageSquare, ExternalLink, User, Clock, Tag, Search, ChevronLeft, ChevronRight, Download, Loader2 } from 'lucide-react';
+import { MessageSquare, ExternalLink, User, Clock, Tag, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -32,11 +32,6 @@ const ChatwootPage = () => {
     // NUEVO - Filtrado por canal (inbox)
     const [inboxes, setInboxes] = useState<any[]>([]);
     const [selectedInbox, setSelectedInbox] = useState<string>('all');
-
-    // NUEVO - Fechas para el reporte
-    const [startDate, setStartDate] = useState<string>('');
-    const [endDate, setEndDate] = useState<string>('');
-    const [isExporting, setIsExporting] = useState(false);
 
     const [meta, setMeta] = useState<any>({});
 
@@ -80,113 +75,6 @@ const ChatwootPage = () => {
         return () => clearTimeout(timer);
     }, [page, search, selectedLabel, selectedInbox]);
 
-    const downloadReport = async () => {
-        setIsExporting(true);
-        try {
-            // Fetch the maximum page size or iterate across pages.
-            // For now we do a single request for the dates.
-            const data = await chatwootService.getConversations({
-                page: 1, // We might need to iterate if there are many pages, or fetch a big page
-                q: undefined, // ignoring search for the full report
-                labels: selectedLabel !== 'all' ? [selectedLabel] : undefined,
-                inbox_id: selectedInbox !== 'all' ? selectedInbox : undefined,
-                since: startDate ? (new Date(startDate + "T00:00:00").getTime() / 1000).toString() : undefined,
-                until: endDate ? (new Date(endDate + "T23:59:59").getTime() / 1000).toString() : undefined,
-            });
-
-            // If we have to pull all we would loop until data.payload.length is 0. 
-            // Here we assume data.payload contains what we need for the CSV.
-            // Better: loop through all pages for a full export:
-            let allConvs = [...data.payload];
-            const metaData = data.meta;
-            const totalCount = metaData.all_count || metaData.count || allConvs.length;
-
-            const startTimestamp = new Date(startDate + "T00:00:00").getTime();
-            const endTimestamp = new Date(endDate + "T23:59:59").getTime();
-
-            const toastId = toast.loading('Descargando datos. Esto puede tardar unos segundos...');
-
-            if (totalCount > 15 && data.payload.length > 0) { // Chatwoot page size is usually 15 or 25
-                let cp = 2;
-                let maxAttempts = 20; // prevent true infinite loop 
-                while (allConvs.length < totalCount && maxAttempts > 0) {
-                    const nextData = await chatwootService.getConversations({
-                        page: cp,
-                        q: undefined, // ignoring search for the full report
-                        labels: selectedLabel !== 'all' ? [selectedLabel] : undefined,
-                        inbox_id: selectedInbox !== 'all' ? selectedInbox : undefined,
-                        since: startDate ? (new Date(startDate + "T00:00:00").getTime() / 1000).toString() : undefined,
-                        until: endDate ? (new Date(endDate + "T23:59:59").getTime() / 1000).toString() : undefined,
-                    });
-                    if (!nextData || !nextData.payload || nextData.payload.length === 0) break;
-
-                    // Filter out duplicates just in case Chatwoot API behaves weird with dates
-                    const newItems = nextData.payload.filter((np: any) => !allConvs.find(c => c.id === np.id));
-                    if (newItems.length === 0) break; // if we didn't get any new items, we are probably looping
-
-                    // Optional Optimization: if all items in this page are older than startTimestamp, we could break early.
-                    // Because Chatwoot sorts by last_activity_at_desc.
-                    const oldestInPage = Math.min(...newItems.map((c: any) => c.timestamp * 1000));
-                    if (oldestInPage > 0 && oldestInPage < startTimestamp) {
-                        // We still add them and then filter all later, but we know we don't need to fetch more pages
-                        allConvs = [...allConvs, ...newItems];
-                        break;
-                    }
-
-                    allConvs = [...allConvs, ...newItems];
-                    cp++;
-                    maxAttempts--;
-                }
-            }
-
-            // Aplicar el filtro de fechas localmente (por FECHA DE CREACIÓN del lead)
-            const filteredConvs = allConvs.filter(conv => {
-                const convTime = (conv.created_at ? conv.created_at : conv.timestamp) * 1000;
-                return convTime >= startTimestamp && convTime <= endTimestamp;
-            });
-
-            // Agrupar conteo de etiquetas
-            const labelCounts: Record<string, number> = {};
-            labels.forEach(l => labelCounts[l] = 0); // initialize all predefined labels to 0
-
-            filteredConvs.forEach(conv => {
-                conv.labels.forEach((l: string) => {
-                    if (labelCounts[l] !== undefined) {
-                        labelCounts[l]++;
-                    } else {
-                        labelCounts[l] = 1;
-                    }
-                });
-            });
-
-            let csvContent = "data:text/csv;charset=utf-8,";
-            csvContent += "Resumen de Etiquetas\n";
-            csvContent += `Fecha Inicio,${startDate || 'No definida'}\n`;
-            csvContent += `Fecha Fin,${endDate || 'No definida'}\n\n`;
-
-            csvContent += "Etiqueta,Cantidad\n";
-            Object.keys(labelCounts).forEach(label => {
-                csvContent += `${label},${labelCounts[label]}\n`;
-            });
-            csvContent += `\nConversaciones Nuevas (Leads),${filteredConvs.length}\n`;
-
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `reporte_etiquetas_${new Date().toISOString().split('T')[0]}.csv`);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-
-            toast.success('Reporte exportado correctamente', { id: toastId });
-        } catch (error) {
-            console.error(error);
-            toast.error('Error al exportar el reporte');
-        } finally {
-            setIsExporting(false);
-        }
-    };
-
     const getStatusColor = (status: string) => {
         switch (status) {
             case 'open':
@@ -219,56 +107,6 @@ const ChatwootPage = () => {
 
     return (
         <div className="space-y-6">
-            <Card className="border-border bg-card">
-                <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                        <Download className="w-5 h-5" />
-                        Generar Reporte de Etiquetas
-                    </CardTitle>
-                    <CardDescription>
-                        Selecciona un rango de fechas obligatorio para exportar el resumen de conversaciones en formato CSV.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="flex flex-col sm:flex-row gap-4 items-end">
-                        <div className="space-y-1 w-full sm:w-auto">
-                            <label className="text-sm font-medium text-muted-foreground">Fecha Inicio <span className="text-red-500">*</span></label>
-                            <Input
-                                type="date"
-                                value={startDate}
-                                onChange={(e) => setStartDate(e.target.value)}
-                                className="w-full sm:w-[150px]"
-                            />
-                        </div>
-                        <div className="space-y-1 w-full sm:w-auto">
-                            <label className="text-sm font-medium text-muted-foreground">Fecha Fin <span className="text-red-500">*</span></label>
-                            <Input
-                                type="date"
-                                value={endDate}
-                                onChange={(e) => setEndDate(e.target.value)}
-                                className="w-full sm:w-[150px]"
-                            />
-                        </div>
-                        <Button
-                            className="w-full sm:w-auto gap-2 bg-green-600 hover:bg-green-700 text-white"
-                            disabled={!startDate || !endDate || isExporting}
-                            onClick={downloadReport}
-                        >
-                            {isExporting ? (
-                                <>
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                    Generando Reporte...
-                                </>
-                            ) : (
-                                <>
-                                    <Download className="w-4 h-4" />
-                                    Descargar CSV
-                                </>
-                            )}
-                        </Button>
-                    </div>
-                </CardContent>
-            </Card>
 
             <Card className="border-border bg-card">
                 <CardHeader>
