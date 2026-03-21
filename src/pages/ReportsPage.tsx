@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,16 +17,48 @@ const ReportsPage = () => {
     const [endDate2, setEndDate2] = useState('');
     const [isExporting2, setIsExporting2] = useState(false);
 
+    const [inboxes, setInboxes] = useState<any[]>([]);
+
+    useEffect(() => {
+        const loadInboxes = async () => {
+            try {
+                const data = await chatwootService.getInboxes();
+                setInboxes(data);
+            } catch (error) {
+                console.error("Error loading inboxes", error);
+            }
+        };
+        loadInboxes();
+    }, []);
+
+    const getInboxDisplayName = (name: string) => {
+        switch (name) {
+            case 'Implanta':
+                return 'Facebook - Implanta';
+            case 'implanta.clinic':
+                return 'Instagram - implanta.clinic';
+            case 'simplia Implanta':
+                return 'WhatsApp - simplia Implanta';
+            default:
+                return name;
+        }
+    };
+
     const labels = [
         'a_', 'b1', 'b2', 'c1', 'cita_agendada', 'cita_agendadajess', 'leads_entrantes', 'venta_exitosa'
     ];
 
-    const fetchAllConversations = async (startDate: string, endDate: string) => {
-        const data = await chatwootService.getConversations({
+    const fetchAllConversations = async (startDate: string, endDate: string, inboxId: string) => {
+        const payloadParams: any = {
             page: 1,
             since: (new Date(startDate + "T00:00:00").getTime() / 1000).toString(),
             until: (new Date(endDate + "T23:59:59").getTime() / 1000).toString(),
-        });
+        };
+        if (inboxId !== 'all') {
+            payloadParams.inbox_id = inboxId;
+        }
+
+        const data = await chatwootService.getConversations(payloadParams);
 
         let allConvs = [...data.payload];
         const totalCount = data.meta.all_count || data.meta.count || allConvs.length;
@@ -36,11 +68,8 @@ const ReportsPage = () => {
             let cp = 2;
             let maxAttempts = 20;
             while (allConvs.length < totalCount && maxAttempts > 0) {
-                const nextData = await chatwootService.getConversations({
-                    page: cp,
-                    since: (new Date(startDate + "T00:00:00").getTime() / 1000).toString(),
-                    until: (new Date(endDate + "T23:59:59").getTime() / 1000).toString(),
-                });
+                const nextParams = { ...payloadParams, page: cp };
+                const nextData = await chatwootService.getConversations(nextParams);
                 if (!nextData || !nextData.payload || nextData.payload.length === 0) break;
 
                 const newItems = nextData.payload.filter((np: any) => !allConvs.find(c => c.id === np.id));
@@ -61,15 +90,24 @@ const ReportsPage = () => {
     };
 
     const generateCSV = (filteredConvs: any[], labelTitle: string, filename: string, startDate: string, endDate: string) => {
-        const labelCounts: Record<string, number> = {};
-        labels.forEach(l => labelCounts[l] = 0);
+        const labelCounts: Record<string, any> = {};
+
+        labels.forEach(l => {
+            labelCounts[l] = { total: 0 };
+            inboxes.forEach(inbox => {
+                labelCounts[l][inbox.id] = 0;
+            });
+        });
 
         filteredConvs.forEach(conv => {
             conv.labels.forEach((l: string) => {
-                if (labelCounts[l] !== undefined) {
-                    labelCounts[l]++;
-                } else {
-                    labelCounts[l] = 1;
+                if (labelCounts[l]) {
+                    labelCounts[l].total++;
+                    if (labelCounts[l][conv.inbox_id] !== undefined) {
+                        labelCounts[l][conv.inbox_id]++;
+                    } else {
+                        labelCounts[l][conv.inbox_id] = 1;
+                    }
                 }
             });
         });
@@ -78,13 +116,39 @@ const ReportsPage = () => {
         csvContent += "Resumen de Etiquetas\n";
         csvContent += `Fecha Inicio,${startDate}\n`;
         csvContent += `Fecha Fin,${endDate}\n\n`;
-        csvContent += "Etiqueta,Cantidad\n";
+
+        // HEADER ROW
+        let headerRow = "Etiqueta,Total";
+        inboxes.forEach(inbox => {
+            headerRow += `,${getInboxDisplayName(inbox.name)}`;
+        });
+        csvContent += headerRow + "\n";
 
         Object.keys(labelCounts).forEach(label => {
-            csvContent += `${label},${labelCounts[label]}\n`;
+            let row = `${label},${labelCounts[label].total}`;
+            inboxes.forEach(inbox => {
+                row += `,${labelCounts[label][inbox.id] || 0}`;
+            });
+            csvContent += row + "\n";
         });
 
-        csvContent += `\n${labelTitle},${filteredConvs.length}\n`;
+        let footerRow = `${labelTitle},${filteredConvs.length}`;
+        const totalsPerInbox: Record<number, number> = {};
+        inboxes.forEach(inbox => totalsPerInbox[inbox.id] = 0);
+
+        filteredConvs.forEach(conv => {
+            if (totalsPerInbox[conv.inbox_id] !== undefined) {
+                totalsPerInbox[conv.inbox_id]++;
+            } else {
+                totalsPerInbox[conv.inbox_id] = 1;
+            }
+        });
+
+        inboxes.forEach(inbox => {
+            footerRow += `,${totalsPerInbox[inbox.id] || 0}`;
+        });
+
+        csvContent += `\n${footerRow}\n`;
 
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
@@ -99,7 +163,7 @@ const ReportsPage = () => {
         setIsExporting1(true);
         const toastId = toast.loading('Descargando datos de leads nuevos...');
         try {
-            const allConvs = await fetchAllConversations(startDate1, endDate1);
+            const allConvs = await fetchAllConversations(startDate1, endDate1, 'all');
             const startTimestamp = new Date(startDate1 + "T00:00:00").getTime();
             const endTimestamp = new Date(endDate1 + "T23:59:59").getTime();
 
@@ -123,7 +187,7 @@ const ReportsPage = () => {
         setIsExporting2(true);
         const toastId = toast.loading('Descargando datos de avance e interacciones...');
         try {
-            const allConvs = await fetchAllConversations(startDate2, endDate2);
+            const allConvs = await fetchAllConversations(startDate2, endDate2, 'all');
             const startTimestamp = new Date(startDate2 + "T00:00:00").getTime();
             const endTimestamp = new Date(endDate2 + "T23:59:59").getTime();
 

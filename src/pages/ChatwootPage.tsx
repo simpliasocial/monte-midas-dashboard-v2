@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { chatwootService, ChatwootConversation } from '@/services/ChatwootService';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -33,7 +33,14 @@ const ChatwootPage = () => {
     const [inboxes, setInboxes] = useState<any[]>([]);
     const [selectedInbox, setSelectedInbox] = useState<string>('all');
 
+    // NUEVO - Filtrado por fecha específica (diaria)
+    const [dateFilter, setDateFilter] = useState<string>('');
+    const [dateFilterType, setDateFilterType] = useState<string>('last_activity');
+
     const [meta, setMeta] = useState<any>({});
+
+    // Prevent race conditions from multiple rapid requests
+    const fetchRequestIdRef = useRef<number>(0);
 
     useEffect(() => {
         const loadInboxes = async () => {
@@ -48,18 +55,92 @@ const ChatwootPage = () => {
     }, []);
 
     const fetchConversations = async (customPage?: number) => {
+        const reqId = ++fetchRequestIdRef.current;
         const fetchLoading = !customPage;
         if (fetchLoading) setLoading(true);
         try {
-            const data = await chatwootService.getConversations({
-                page: customPage || page,
-                q: search || undefined,
-                labels: selectedLabel !== 'all' ? [selectedLabel] : undefined,
-                inbox_id: selectedInbox !== 'all' ? selectedInbox : undefined,
-            });
-            setConversations(data.payload);
-            setMeta(data.meta);
+            if (dateFilter) {
+                // Client-side fetch & filter (because Chatwoot API ignores since/until for this endpoint)
+                let allConvs: any[] = [];
+                let cp = 1;
+                let maxAttempts = 20; // safe limit
+                let totalCount = 1;
+                const targetPage = customPage || page;
+
+                const startTimestamp = new Date(dateFilter + "T00:00:00").getTime();
+                const endTimestamp = new Date(dateFilter + "T23:59:59").getTime();
+
+                while (allConvs.length < totalCount && maxAttempts > 0) {
+                    const data = await chatwootService.getConversations({
+                        page: cp,
+                        q: search || undefined,
+                        labels: selectedLabel !== 'all' ? [selectedLabel] : undefined,
+                        inbox_id: selectedInbox !== 'all' ? selectedInbox : undefined,
+                    });
+
+                    if (!data || !data.payload || data.payload.length === 0) break;
+                    if (cp === 1) totalCount = data.meta.all_count || data.meta.count || 0;
+
+                    const newItems = data.payload.filter((np: any) => !allConvs.find(c => c.id === np.id));
+                    if (newItems.length === 0) break;
+
+                    const oldestInPage = Math.min(...newItems.map((c: any) => c.timestamp * 1000));
+
+                    allConvs = [...allConvs, ...newItems];
+
+                    // Stop fetching if the oldest item in the current page is older than our start day
+                    if (oldestInPage > 0 && oldestInPage < startTimestamp) {
+                        break;
+                    }
+
+                    cp++;
+                    maxAttempts--;
+                }
+
+                // Filter locally by everything to ensure 100% accuracy (API sometimes ignores them)
+                const filteredConvs = allConvs.filter(conv => {
+                    const convTime = dateFilterType === 'created_at'
+                        ? (conv.created_at ? conv.created_at : conv.timestamp) * 1000
+                        : conv.timestamp * 1000;
+                    const isDateMatch = convTime >= startTimestamp && convTime <= endTimestamp;
+
+                    const isLabelMatch = selectedLabel === 'all' || (conv.labels && conv.labels.includes(selectedLabel));
+                    const isInboxMatch = selectedInbox === 'all' || conv.inbox_id.toString() === selectedInbox;
+                    const isSearchMatch = !search ||
+                        (conv.meta?.sender?.name?.toLowerCase().includes(search.toLowerCase())) ||
+                        (conv.meta?.sender?.phone_number?.includes(search));
+
+                    return isDateMatch && isLabelMatch && isInboxMatch && isSearchMatch;
+                });
+
+                const pageSize = 15;
+                const startIndex = (targetPage - 1) * pageSize;
+                const sliced = filteredConvs.slice(startIndex, startIndex + pageSize);
+
+                if (reqId !== fetchRequestIdRef.current) return;
+
+                setConversations(sliced);
+                setMeta({
+                    count: sliced.length,
+                    all_count: filteredConvs.length
+                });
+
+            } else {
+                // Standard server-side pagination
+                const data = await chatwootService.getConversations({
+                    page: customPage || page,
+                    q: search || undefined,
+                    labels: selectedLabel !== 'all' ? [selectedLabel] : undefined,
+                    inbox_id: selectedInbox !== 'all' ? selectedInbox : undefined,
+                });
+
+                if (reqId !== fetchRequestIdRef.current) return;
+
+                setConversations(data.payload);
+                setMeta(data.meta);
+            }
         } catch (error) {
+            if (reqId !== fetchRequestIdRef.current) return;
             console.error(error);
             toast.error('Error al cargar las conversaciones de Chatwoot');
         } finally {
@@ -73,7 +154,7 @@ const ChatwootPage = () => {
             fetchConversations();
         }, 500);
         return () => clearTimeout(timer);
-    }, [page, search, selectedLabel, selectedInbox]);
+    }, [page, search, selectedLabel, selectedInbox, dateFilter, dateFilterType]);
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -130,6 +211,41 @@ const ChatwootPage = () => {
                                     }}
                                 />
                             </div>
+
+                            <div className="flex flex-col gap-1 items-start w-full sm:w-auto">
+                                <div className="flex bg-muted rounded-md p-1 h-10 w-full sm:w-auto">
+                                    <button
+                                        onClick={() => { setDateFilterType('created_at'); setPage(1); }}
+                                        className={`px-3 py-1 text-xs font-medium rounded-sm transition-colors flex-1 sm:flex-none ${dateFilterType === 'created_at' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                                        title="Leads creados exactamente en la fecha seleccionada"
+                                    >
+                                        Nuevos
+                                    </button>
+                                    <button
+                                        onClick={() => { setDateFilterType('last_activity'); setPage(1); }}
+                                        className={`px-3 py-1 text-xs font-medium rounded-sm transition-colors flex-1 sm:flex-none ${dateFilterType === 'last_activity' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                                        title="Cualquier lead que tuvo actividad o cambio de etiquetas en la fecha seleccionada"
+                                    >
+                                        Actividad
+                                    </button>
+                                </div>
+                                <span className="text-[10px] text-muted-foreground px-1 max-w-[150px] leading-tight">
+                                    {dateFilterType === 'created_at'
+                                        ? "Leads que entraron ese día"
+                                        : "Leads que interactuaron/cambiaron ese día"}
+                                </span>
+                            </div>
+
+                            <Input
+                                type="date"
+                                value={dateFilter}
+                                onChange={(e) => {
+                                    setDateFilter(e.target.value);
+                                    setPage(1);
+                                }}
+                                className="w-full sm:w-[150px] h-10"
+                                title="Filtrar por fecha específica"
+                            />
 
                             <Select
                                 value={selectedInbox}
@@ -220,8 +336,13 @@ const ChatwootPage = () => {
                                                                     <div className="font-medium text-foreground">
                                                                         {conv.meta.sender.name || 'Sin Nombre'}
                                                                     </div>
-                                                                    <div className="text-xs text-muted-foreground">
-                                                                        {conv.meta.sender.email || conv.meta.sender.phone_number}
+                                                                    <div className="text-xs text-muted-foreground flex flex-col items-start gap-1 mt-0.5">
+                                                                        <span>{conv.meta.sender.email || conv.meta.sender.phone_number}</span>
+                                                                        <span className="text-[10px] bg-primary/5 text-primary/80 px-1.5 py-0.5 rounded-sm line-clamp-1 border border-primary/10">
+                                                                            {getInboxDisplayName(
+                                                                                inboxes.find(i => i.id === conv.inbox_id)?.name || 'Canal Desconocido'
+                                                                            )}
+                                                                        </span>
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -308,7 +429,7 @@ const ChatwootPage = () => {
                     )}
                 </CardContent>
             </Card>
-        </div>
+        </div >
     );
 };
 
