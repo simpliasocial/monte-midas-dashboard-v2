@@ -52,7 +52,7 @@ const ReportsPage = () => {
         const payloadParams: any = {
             page: 1,
             since: (new Date(startDate + "T00:00:00").getTime() / 1000).toString(),
-            until: (new Date(endDate + "T23:59:59").getTime() / 1000).toString(),
+            // No enviamos 'until' al API porque Chatwoot filtraría leads históricos si tuvieron actividad posterior al 'endDate'
         };
         if (inboxId !== 'all') {
             payloadParams.inbox_id = inboxId;
@@ -66,7 +66,7 @@ const ReportsPage = () => {
 
         if (totalCount > 15 && data.payload.length > 0) {
             let cp = 2;
-            let maxAttempts = 20;
+            let maxAttempts = 200; // Incrementado masivamente para soportar barrer históricos sin truncamientos
             while (allConvs.length < totalCount && maxAttempts > 0) {
                 const nextParams = { ...payloadParams, page: cp };
                 const nextData = await chatwootService.getConversations(nextParams);
@@ -100,16 +100,18 @@ const ReportsPage = () => {
         });
 
         filteredConvs.forEach(conv => {
-            conv.labels.forEach((l: string) => {
-                if (labelCounts[l]) {
-                    labelCounts[l].total++;
-                    if (labelCounts[l][conv.inbox_id] !== undefined) {
-                        labelCounts[l][conv.inbox_id]++;
-                    } else {
-                        labelCounts[l][conv.inbox_id] = 1;
+            if (conv.labels) {
+                conv.labels.forEach((l: string) => {
+                    if (labelCounts[l]) {
+                        labelCounts[l].total++;
+                        if (labelCounts[l][conv.inbox_id] !== undefined) {
+                            labelCounts[l][conv.inbox_id]++;
+                        } else {
+                            labelCounts[l][conv.inbox_id] = 1;
+                        }
                     }
-                }
-            });
+                });
+            }
         });
 
         let csvContent = "data:text/csv;charset=utf-8,";
@@ -132,20 +134,20 @@ const ReportsPage = () => {
             csvContent += row + "\n";
         });
 
-        let footerRow = `${labelTitle},${filteredConvs.length}`;
-        const totalsPerInbox: Record<number, number> = {};
-        inboxes.forEach(inbox => totalsPerInbox[inbox.id] = 0);
+        let totalSum = 0;
+        const sumPerInbox: Record<number, number> = {};
+        inboxes.forEach(inbox => sumPerInbox[inbox.id] = 0);
 
-        filteredConvs.forEach(conv => {
-            if (totalsPerInbox[conv.inbox_id] !== undefined) {
-                totalsPerInbox[conv.inbox_id]++;
-            } else {
-                totalsPerInbox[conv.inbox_id] = 1;
-            }
+        Object.keys(labelCounts).forEach(label => {
+            totalSum += labelCounts[label].total;
+            inboxes.forEach(inbox => {
+                sumPerInbox[inbox.id] += (labelCounts[label][inbox.id] || 0);
+            });
         });
 
+        let footerRow = `${labelTitle},${totalSum}`;
         inboxes.forEach(inbox => {
-            footerRow += `,${totalsPerInbox[inbox.id] || 0}`;
+            footerRow += `,${sumPerInbox[inbox.id]}`;
         });
 
         csvContent += `\n${footerRow}\n`;
