@@ -63,7 +63,7 @@ const ChatwootPage = () => {
                 // Client-side fetch & filter (because Chatwoot API ignores since/until for this endpoint)
                 let allConvs: any[] = [];
                 let cp = 1;
-                let maxAttempts = 20; // safe limit
+                let maxAttempts = 200; // Incrementado para barrer históricos
                 let totalCount = 1;
                 const targetPage = customPage || page;
 
@@ -76,10 +76,11 @@ const ChatwootPage = () => {
                         q: search || undefined,
                         labels: selectedLabel !== 'all' ? [selectedLabel] : undefined,
                         inbox_id: selectedInbox !== 'all' ? selectedInbox : undefined,
+                        since: (startTimestamp / 1000).toString(),
                     });
 
                     if (!data || !data.payload || data.payload.length === 0) break;
-                    if (cp === 1) totalCount = data.meta.all_count || data.meta.count || 0;
+                    if (cp === 1) totalCount = data.meta.all_count || data.meta.count || data.payload.length || 0;
 
                     const newItems = data.payload.filter((np: any) => !allConvs.find(c => c.id === np.id));
                     if (newItems.length === 0) break;
@@ -149,6 +150,8 @@ const ChatwootPage = () => {
     };
 
     useEffect(() => {
+        // Mostrar animación de actualizando inmediatamente cuando cambia un filtro
+        setLoading(true);
         // Debounce search
         const timer = setTimeout(() => {
             fetchConversations();
