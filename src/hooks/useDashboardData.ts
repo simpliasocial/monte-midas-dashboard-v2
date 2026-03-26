@@ -62,12 +62,14 @@ const saveToCache = (data: any) => {
 
 export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek: string = "1") => {
     const cachedData = useRef(loadFromCache());
+    const rawConversationsCache = useRef<any[]>([]);
+    const lastSyncRef = useRef<number>(0);
     const [loading, setLoading] = useState(!cachedData.current);
     const [error, setError] = useState<string | null>(null);
     const [data, setData] = useState(cachedData.current || getDefaultData());
 
     const fetchData = async (isBackground = false) => {
-        if (!isBackground && !cachedData.current) {
+        if (!isBackground && !cachedData.current && rawConversationsCache.current.length === 0) {
             setLoading(true);
         }
         try {
@@ -99,48 +101,75 @@ export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek
             }
 
             // 3. Fetch conversations + inboxes in PARALLEL
-            // First page + inboxes concurrently
             const [firstPageResponse, inboxes] = await Promise.all([
                 chatwootService.getConversations({ status: 'all', page: 1 }),
                 chatwootService.getInboxes()
             ]);
 
-            let allConversationsRaw: any[] = [...firstPageResponse.payload];
+            let allConversationsRaw = rawConversationsCache.current;
+            const currentSyncTimestamp = Date.now() / 1000;
 
-            // If first page is full, fetch remaining pages concurrently
-            if (firstPageResponse.payload.length >= 25) {
-                // Estimate total pages needed, fetch in batches of 5 concurrent requests
-                let currentPage = 2;
-                let keepFetching = true;
+            if (allConversationsRaw.length === 0 || !isBackground) {
+                // Sync completo (primera vez o refresco forzado)
+                allConversationsRaw = [...firstPageResponse.payload];
 
-                while (keepFetching) {
-                    // Fire 5 pages at once
-                    const pagePromises = [];
-                    for (let i = 0; i < 5; i++) {
-                        pagePromises.push(
-                            chatwootService.getConversations({ status: 'all', page: currentPage + i })
-                        );
-                    }
+                if (firstPageResponse.payload.length >= 25) {
+                    let currentPage = 2;
+                    let keepFetching = true;
 
-                    const results = await Promise.all(pagePromises);
-
-                    for (const result of results) {
-                        if (result.payload.length === 0) {
-                            keepFetching = false;
-                            break;
+                    while (keepFetching) {
+                        const pagePromises = [];
+                        for (let i = 0; i < 5; i++) {
+                            pagePromises.push(chatwootService.getConversations({ status: 'all', page: currentPage + i }));
                         }
-                        allConversationsRaw = [...allConversationsRaw, ...result.payload];
-                        if (result.payload.length < 25) {
-                            keepFetching = false;
-                            break;
-                        }
-                    }
+                        const results = await Promise.all(pagePromises);
 
-                    currentPage += 5;
+                        for (const result of results) {
+                            if (result.payload.length === 0) {
+                                keepFetching = false;
+                                break;
+                            }
+                            allConversationsRaw = [...allConversationsRaw, ...result.payload];
+                            if (result.payload.length < 25) {
+                                keepFetching = false;
+                                break;
+                            }
+                        }
+                        currentPage += 5;
+                    }
                 }
+            } else {
+                // Delta sync silencioso y rápido (sólo trae lo nuevo)
+                let newOrUpdated = [...firstPageResponse.payload];
+                const oldestInFirst = Math.min(...firstPageResponse.payload.map(c => c.timestamp));
+
+                if (firstPageResponse.payload.length >= 25 && oldestInFirst > lastSyncRef.current) {
+                    let currentPage = 2;
+                    let keepFetching = true;
+                    while (keepFetching) {
+                        const nextResp = await chatwootService.getConversations({ status: 'all', page: currentPage });
+                        if (nextResp.payload.length === 0) break;
+
+                        newOrUpdated = [...newOrUpdated, ...nextResp.payload];
+                        const oldestInPage = Math.min(...nextResp.payload.map((c: any) => c.timestamp));
+
+                        if (oldestInPage <= lastSyncRef.current || nextResp.payload.length < 25) {
+                            keepFetching = false;
+                        }
+                        currentPage++;
+                    }
+                }
+
+                // Fusionar con caché (sobreescribe los modificados y agrega los nuevos)
+                const idMap = new Map(allConversationsRaw.map(c => [c.id, c]));
+                newOrUpdated.forEach(c => idMap.set(c.id, c));
+                allConversationsRaw = Array.from(idMap.values());
             }
 
-            console.log(`Fetched ${allConversationsRaw.length} conversations total`);
+            rawConversationsCache.current = allConversationsRaw;
+            lastSyncRef.current = currentSyncTimestamp;
+
+            console.log(`Procesando ${allConversationsRaw.length} conversaciones en total (Delta Mode: ${isBackground})`);
 
             // Helper to parse "monto_operacion"
             const parseMonto = (val: any): number => {
@@ -594,7 +623,7 @@ export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek
 
     useEffect(() => {
         fetchData(!!cachedData.current); // If we have cache, fetch in background
-        const interval = setInterval(() => fetchData(true), 60000); // Poll every 60s in background
+        const interval = setInterval(() => fetchData(true), 15000); // Poll every 15s in background
         return () => clearInterval(interval);
     }, [selectedMonth, selectedWeek]); // Re-fetch when month or week changes
 

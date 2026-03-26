@@ -113,6 +113,7 @@ export const chatwootService = {
                     until: params.until,
                     labels: params.labels ? params.labels.join(',') : undefined,
                     inbox_id: params.inbox_id,
+                    _t: Date.now(), // Cache buster para polling en vivo
                 },
             });
             return response.data.data;

@@ -211,49 +211,13 @@ const ReportsPage = () => {
 
     return (
         <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card className="border-border bg-card">
-                    <CardHeader>
-                        <CardTitle className="text-lg flex items-center gap-2 text-blue-600">
-                            <Users className="w-5 h-5" />
-                            Reporte de Leads Nuevos
-                        </CardTitle>
-                        <CardDescription>
-                            Filtra exclusivamente los prospectos que escribieron <strong>por primera vez</strong> en este rango de fechas.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="flex flex-col gap-4">
-                            <div className="flex flex-col sm:flex-row gap-4">
-                                <div className="space-y-1 w-full">
-                                    <label className="text-sm font-medium text-muted-foreground">Fecha Inicio <span className="text-red-500">*</span></label>
-                                    <Input type="date" value={startDate1} onChange={(e) => setStartDate1(e.target.value)} />
-                                </div>
-                                <div className="space-y-1 w-full">
-                                    <label className="text-sm font-medium text-muted-foreground">Fecha Fin <span className="text-red-500">*</span></label>
-                                    <Input type="date" value={endDate1} onChange={(e) => setEndDate1(e.target.value)} />
-                                </div>
-                            </div>
-                            <Button
-                                className="w-full gap-2 bg-blue-600 hover:bg-blue-700 text-white"
-                                disabled={!startDate1 || !endDate1 || isExporting1}
-                                onClick={downloadReport1}
-                            >
-                                {isExporting1 ? (
-                                    <><Loader2 className="w-4 h-4 animate-spin" /> Generando Reporte...</>
-                                ) : (
-                                    <><Download className="w-4 h-4" /> Descargar CSV de Leads</>
-                                )}
-                            </Button>
-                        </div>
-                    </CardContent>
-                </Card>
+            <div className="grid grid-cols-1 gap-6">
 
                 <Card className="border-border bg-card">
                     <CardHeader>
                         <CardTitle className="text-lg flex items-center gap-2 text-green-600">
                             <Activity className="w-5 h-5" />
-                            Reporte de Interacciones (Avance)
+                            Reporte de Interacciones
                         </CardTitle>
                         <CardDescription>
                             Filtra prospectos activos en este rango, incluyendo aquellos creados en el pasado pero que <strong>tuvieron actividad u otra etiqueta</strong> hoy.

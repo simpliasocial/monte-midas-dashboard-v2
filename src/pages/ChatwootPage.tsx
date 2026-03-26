@@ -54,9 +54,9 @@ const ChatwootPage = () => {
         loadInboxes();
     }, []);
 
-    const fetchConversations = async (customPage?: number) => {
+    const fetchConversations = async (customPage?: number, isBackground = false) => {
         const reqId = ++fetchRequestIdRef.current;
-        const fetchLoading = !customPage;
+        const fetchLoading = !customPage && !isBackground;
         if (fetchLoading) setLoading(true);
         try {
             if (dateFilter) {
@@ -159,6 +159,14 @@ const ChatwootPage = () => {
         return () => clearTimeout(timer);
     }, [page, search, selectedLabel, selectedInbox, dateFilter, dateFilterType]);
 
+    // Polling silencioso en vivo ("LIVE") cada 15 segundos sin interrupción de UI
+    useEffect(() => {
+        const interval = setInterval(() => {
+            fetchConversations(undefined, true);
+        }, 15000);
+        return () => clearInterval(interval);
+    }, [page, search, selectedLabel, selectedInbox, dateFilter, dateFilterType]);
+
     const getStatusColor = (status: string) => {
         switch (status) {
             case 'open':
@@ -215,29 +223,7 @@ const ChatwootPage = () => {
                                 />
                             </div>
 
-                            <div className="flex flex-col gap-1 items-start w-full sm:w-auto">
-                                <div className="flex bg-muted rounded-md p-1 h-10 w-full sm:w-auto">
-                                    <button
-                                        onClick={() => { setDateFilterType('created_at'); setPage(1); }}
-                                        className={`px-3 py-1 text-xs font-medium rounded-sm transition-colors flex-1 sm:flex-none ${dateFilterType === 'created_at' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-                                        title="Leads creados exactamente en la fecha seleccionada"
-                                    >
-                                        Nuevos
-                                    </button>
-                                    <button
-                                        onClick={() => { setDateFilterType('last_activity'); setPage(1); }}
-                                        className={`px-3 py-1 text-xs font-medium rounded-sm transition-colors flex-1 sm:flex-none ${dateFilterType === 'last_activity' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-                                        title="Cualquier lead que tuvo actividad o cambio de etiquetas en la fecha seleccionada"
-                                    >
-                                        Actividad
-                                    </button>
-                                </div>
-                                <span className="text-[10px] text-muted-foreground px-1 max-w-[150px] leading-tight">
-                                    {dateFilterType === 'created_at'
-                                        ? "Leads que entraron ese día"
-                                        : "Leads que interactuaron/cambiaron ese día"}
-                                </span>
-                            </div>
+
 
                             <Input
                                 type="date"

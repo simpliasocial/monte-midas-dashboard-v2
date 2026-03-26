@@ -14,7 +14,6 @@ import { ResponseTimeGauge } from "@/components/dashboard/ResponseTimeGauge";
 import { ChannelBreakdown } from "@/components/dashboard/ChannelBreakdown";
 import { TrendChart } from "@/components/dashboard/TrendChart";
 import { DataCaptureChart } from "@/components/dashboard/DataCaptureChart";
-import { DisqualificationReasons } from "@/components/dashboard/DisqualificationReasons";
 import { WeeklyTrend } from "@/components/dashboard/WeeklyTrend";
 import { RecentAppointments } from "@/components/dashboard/RecentAppointments";
 import { useDashboardData } from "@/hooks/useDashboardData";
@@ -314,36 +313,6 @@ const Index = () => {
         <RecentAppointments appointments={recentAppointments} />
       </SectionCard>
 
-      {/* SQLs & Disqualification */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        <SectionCard
-          title="KPIs de Interés"
-          subtitle={`Rendimiento - ${periodLabel}`}
-          icon={Target}
-        >
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 rounded-lg bg-secondary/50 text-center">
-                <p className="text-3xl font-bold text-primary font-display">{kpis.leadsInteresados}</p>
-                <p className="text-sm text-muted-foreground">Leads Interesados</p>
-              </div>
-              <div className="p-4 rounded-lg bg-secondary/50 text-center">
-                <p className="text-3xl font-bold text-success font-display">{kpis.totalLeads > 0 ? Math.round((kpis.leadsInteresados / kpis.totalLeads) * 100) : 0}%</p>
-                <p className="text-sm text-muted-foreground">Tasa de Interés</p>
-              </div>
-            </div>
-          </div>
-        </SectionCard>
-
-        <SectionCard
-          title="Motivos de Descalificación"
-          subtitle={`Razones - ${periodLabel}`}
-          icon={AlertTriangle}
-          className="lg:col-span-2"
-        >
-          <DisqualificationReasons data={disqualificationReasons} />
-        </SectionCard>
-      </div>
 
       {/* Data Capture */}
       <SectionCard
@@ -371,42 +340,7 @@ const Index = () => {
           <ResponseTimeGauge value={responseTime} />
         </SectionCard>
 
-        <SectionCard
-          title="Desempeño Operativo"
-          subtitle={`Métricas - ${periodLabel}`}
-          icon={Zap}
-          className="lg:col-span-2"
-        >
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-4 rounded-lg bg-secondary/50 text-center">
-              <p className="text-2xl font-bold text-primary font-display">0</p>
-              <p className="text-xs text-muted-foreground">Mensajes/Conversación</p>
-            </div>
-            <div className="p-4 rounded-lg bg-secondary/50 text-center">
-              <p className="text-2xl font-bold text-success font-display">100%</p>
-              <p className="text-xs text-muted-foreground">Uptime</p>
-            </div>
-            <div className="p-4 rounded-lg bg-secondary/50 text-center">
-              <p className="text-2xl font-bold text-warning font-display">0</p>
-              <p className="text-xs text-muted-foreground">Errores del Agente</p>
-            </div>
-            <div className="p-4 rounded-lg bg-secondary/50 text-center">
-              <p className="text-2xl font-bold text-primary font-display">0%</p>
-              <p className="text-xs text-muted-foreground">Tasa de Error</p>
-            </div>
-          </div>
-          <div className="mt-6 p-4 rounded-lg bg-success/10 border border-success/20">
-            <div className="flex items-center gap-3">
-              <CheckCircle className="h-5 w-5 text-success" />
-              <div>
-                <p className="font-medium text-foreground">SLA Cumplido</p>
-                <p className="text-sm text-muted-foreground">
-                  Tiempo de respuesta promedio dentro del objetivo (≤6 min)
-                </p>
-              </div>
-            </div>
-          </div>
-        </SectionCard>
+
       </div>
 
       {/* Monthly Trend */}
