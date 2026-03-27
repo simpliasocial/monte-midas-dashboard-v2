@@ -67,14 +67,13 @@ const Index = () => {
       filtered.filter((c: any) => c.labels && c.labels.includes(label)).length;
 
     return [
-      { label: "leads_entrantes", value: countLabel('leads_entrantes'), percentage: total > 0 ? Math.round((countLabel('leads_entrantes') / total) * 100) : 0, color: "hsl(200, 70%, 50%)" },
-      { label: "a_", value: countLabel('a_'), percentage: total > 0 ? Math.round((countLabel('a_') / total) * 100) : 0, color: "hsl(224, 62%, 32%)" },
-      { label: "b1", value: countLabel('b1'), percentage: total > 0 ? Math.round((countLabel('b1') / total) * 100) : 0, color: "hsl(142, 60%, 45%)" },
-      { label: "b2", value: countLabel('b2'), percentage: total > 0 ? Math.round((countLabel('b2') / total) * 100) : 0, color: "hsl(142, 60%, 55%)" },
-      { label: "cita_agendada", value: countLabel('cita_agendada'), percentage: total > 0 ? Math.round((countLabel('cita_agendada') / total) * 100) : 0, color: "hsl(45, 93%, 58%)" },
-      { label: "cita_agendadajess", value: countLabel('cita_agendadajess'), percentage: total > 0 ? Math.round((countLabel('cita_agendadajess') / total) * 100) : 0, color: "hsl(35, 93%, 50%)" },
-      { label: "c1", value: countLabel('c1'), percentage: total > 0 ? Math.round((countLabel('c1') / total) * 100) : 0, color: "hsl(0, 70%, 60%)" },
-      { label: "venta_exitosa", value: countLabel('venta_exitosa'), percentage: total > 0 ? Math.round((countLabel('venta_exitosa') / total) * 100) : 0, color: "hsl(160, 84%, 39%)" },
+      { label: "Interesado", value: countLabel('Interesado'), percentage: total > 0 ? Math.round((countLabel('Interesado') / total) * 100) : 0, color: "hsl(224, 62%, 32%)" },
+      { label: "Crear Confianza", value: countLabel('crear_confianza'), percentage: total > 0 ? Math.round((countLabel('crear_confianza') / total) * 100) : 0, color: "hsl(142, 60%, 45%)" },
+      { label: "Crear Urgencia", value: countLabel('crear_urgencia'), percentage: total > 0 ? Math.round((countLabel('crear_urgencia') / total) * 100) : 0, color: "hsl(142, 60%, 55%)" },
+      { label: "Cita Agendada", value: countLabel('cita_agendada'), percentage: total > 0 ? Math.round((countLabel('cita_agendada') / total) * 100) : 0, color: "hsl(45, 93%, 58%)" },
+      { label: "Cita Agendada Jess", value: countLabel('cita_agendada_jess'), percentage: total > 0 ? Math.round((countLabel('cita_agendada_jess') / total) * 100) : 0, color: "hsl(35, 93%, 50%)" },
+      { label: "Desinteresado", value: countLabel('desinteresado'), percentage: total > 0 ? Math.round((countLabel('desinteresado') / total) * 100) : 0, color: "hsl(0, 70%, 60%)" },
+      { label: "Venta Exitosa", value: countLabel('venta_exitosa'), percentage: total > 0 ? Math.round((countLabel('venta_exitosa') / total) * 100) : 0, color: "hsl(160, 84%, 39%)" },
     ];
   })();
 
@@ -285,14 +284,13 @@ const Index = () => {
           <div className="mt-4 flex items-center justify-center gap-4 flex-wrap">
             {[
               { color: "bg-[hsl(224,62%,32%)]", label: "Leads (Total)" },
-              { color: "bg-[hsl(200,70%,50%)]", label: "leads_entrantes" },
-              { color: "bg-[hsl(260,60%,50%)]", label: "a_" },
-              { color: "bg-[hsl(142,60%,45%)]", label: "b1" },
-              { color: "bg-[hsl(142,60%,55%)]", label: "b2" },
-              { color: "bg-[hsl(45,93%,48%)]", label: "cita_agendada" },
-              { color: "bg-[hsl(35,93%,50%)]", label: "cita_agendadajess" },
-              { color: "bg-[hsl(0,70%,60%)]", label: "c1" },
-              { color: "bg-[hsl(160,84%,39%)]", label: "venta_exitosa" },
+              { color: "bg-[hsl(260,60%,50%)]", label: "Interesado" },
+              { color: "bg-[hsl(142,60%,45%)]", label: "Crear Confianza" },
+              { color: "bg-[hsl(142,60%,55%)]", label: "Crear Urgencia" },
+              { color: "bg-[hsl(45,93%,48%)]", label: "Cita Agendada" },
+              { color: "bg-[hsl(35,93%,50%)]", label: "Cita Agendada Jess" },
+              { color: "bg-[hsl(0,70%,60%)]", label: "Desinteresado" },
+              { color: "bg-[hsl(160,84%,39%)]", label: "Venta Exitosa" },
             ].map(({ color, label }) => (
               <div key={label} className="flex items-center gap-1.5">
                 <div className={`w-2.5 h-2.5 rounded-full ${color}`} />

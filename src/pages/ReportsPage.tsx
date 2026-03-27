@@ -1,21 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Download, Loader2, Users, Activity } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Download, Loader2, Activity, CalendarDays } from 'lucide-react';
 import { toast } from 'sonner';
 import { chatwootService } from '@/services/ChatwootService';
 
 const ReportsPage = () => {
-    // State for Report 1
-    const [startDate1, setStartDate1] = useState('');
-    const [endDate1, setEndDate1] = useState('');
-    const [isExporting1, setIsExporting1] = useState(false);
-
-    // State for Report 2
-    const [startDate2, setStartDate2] = useState('');
-    const [endDate2, setEndDate2] = useState('');
-    const [isExporting2, setIsExporting2] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
+    const [selectedMonth, setSelectedMonth] = useState<string>((new Date().getMonth()).toString());
+    const [selectedYear, setSelectedYear] = useState<string>("2026");
 
     const [inboxes, setInboxes] = useState<any[]>([]);
 
@@ -45,7 +39,7 @@ const ReportsPage = () => {
     };
 
     const labels = [
-        'a_', 'b1', 'b2', 'c1', 'cita_agendada', 'cita_agendadajess', 'leads_entrantes', 'venta_exitosa'
+        'Interesado', 'crear_confianza', 'crear_urgencia', 'desinteresado', 'cita_agendada', 'cita_agendada_jess', 'venta_exitosa'
     ];
 
     const fetchAllConversations = async (startDate: string, endDate: string, inboxId: string) => {
@@ -161,52 +155,49 @@ const ReportsPage = () => {
         link.remove();
     };
 
-    const downloadReport1 = async () => {
-        setIsExporting1(true);
-        const toastId = toast.loading('Descargando datos de leads nuevos...');
+    const downloadReport = async (start: string, end: string, type: 'hoy' | 'mes') => {
+        setIsExporting(true);
+        const toastId = toast.loading(`Descargando reporte de ${type}...`);
         try {
-            const allConvs = await fetchAllConversations(startDate1, endDate1, 'all');
-            const startTimestamp = new Date(startDate1 + "T00:00:00").getTime();
-            const endTimestamp = new Date(endDate1 + "T23:59:59").getTime();
+            const allConvs = await fetchAllConversations(start, end, 'all');
+            const startTimestamp = new Date(start + "T00:00:00").getTime();
+            // Para el final del día:
+            const endTimestamp = new Date(end + "T23:59:59").getTime();
 
-            // Lógica Reporte 1: Filtrar por fecha de CREACIÓN
-            const filteredConvs = allConvs.filter(conv => {
-                const convTime = (conv.created_at ? conv.created_at : conv.timestamp) * 1000;
-                return convTime >= startTimestamp && convTime <= endTimestamp;
-            });
-
-            generateCSV(filteredConvs, "Conversaciones Nuevas (Leads)", "reporte_leads_nuevos", startDate1, endDate1);
-            toast.success('Reporte exportado correctamente', { id: toastId });
-        } catch (error) {
-            console.error(error);
-            toast.error('Error al exportar el reporte', { id: toastId });
-        } finally {
-            setIsExporting1(false);
-        }
-    };
-
-    const downloadReport2 = async () => {
-        setIsExporting2(true);
-        const toastId = toast.loading('Descargando datos de avance e interacciones...');
-        try {
-            const allConvs = await fetchAllConversations(startDate2, endDate2, 'all');
-            const startTimestamp = new Date(startDate2 + "T00:00:00").getTime();
-            const endTimestamp = new Date(endDate2 + "T23:59:59").getTime();
-
-            // Lógica Reporte 2: Filtrar por ÚLTIMA ACTIVIDAD (timestamp)
+            // Filtrar por ÚLTIMA ACTIVIDAD (timestamp)
             const filteredConvs = allConvs.filter(conv => {
                 const convTime = conv.timestamp * 1000;
                 return convTime >= startTimestamp && convTime <= endTimestamp;
             });
 
-            generateCSV(filteredConvs, "Total Leads con Actividad/Cambios", "reporte_avance_etiquetas", startDate2, endDate2);
+            generateCSV(filteredConvs, `Total Leads con Actividad (${type})`, `reporte_avance_${type}`, start, end);
             toast.success('Reporte exportado correctamente', { id: toastId });
         } catch (error) {
             console.error(error);
             toast.error('Error al exportar el reporte', { id: toastId });
         } finally {
-            setIsExporting2(false);
+            setIsExporting(false);
         }
+    };
+
+    const handleDownloadToday = () => {
+        // Generar en formato YYYY-MM-DD
+        const todayStr = new Date().toLocaleString('sv-SE', { timeZone: 'America/Guayaquil' }).split(' ')[0];
+        downloadReport(todayStr, todayStr, 'hoy');
+    };
+
+    const handleDownloadMonth = () => {
+        const year = parseInt(selectedYear);
+        const month = parseInt(selectedMonth);
+
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+
+        // Formatear localmente para evitar desfases de UTC
+        const startStr = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+        const endStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
+
+        downloadReport(startStr, endStr, 'mes');
     };
 
     return (
@@ -224,28 +215,92 @@ const ReportsPage = () => {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <div className="flex flex-col gap-4">
-                            <div className="flex flex-col sm:flex-row gap-4">
-                                <div className="space-y-1 w-full">
-                                    <label className="text-sm font-medium text-muted-foreground">Fecha Inicio <span className="text-red-500">*</span></label>
-                                    <Input type="date" value={startDate2} onChange={(e) => setStartDate2(e.target.value)} />
+                        <div className="flex flex-col gap-8">
+
+                            {/* Opción 1: Reporte de Hoy */}
+                            <div className="space-y-3 bg-slate-50/50 p-5 rounded-lg border border-border">
+                                <div>
+                                    <h3 className="font-medium text-foreground flex items-center gap-2">
+                                        <Activity className="w-4 h-4 text-primary" />
+                                        Reporte Diario
+                                    </h3>
+                                    <p className="text-sm text-muted-foreground mt-1">
+                                        Descarga el reporte de interacciones para el día de hoy ({new Date().toLocaleString('sv-SE', { timeZone: 'America/Guayaquil' }).split(' ')[0]}).
+                                    </p>
                                 </div>
-                                <div className="space-y-1 w-full">
-                                    <label className="text-sm font-medium text-muted-foreground">Fecha Fin <span className="text-red-500">*</span></label>
-                                    <Input type="date" value={endDate2} onChange={(e) => setEndDate2(e.target.value)} />
+                                <Button
+                                    className="w-full sm:w-auto gap-2 bg-green-600 hover:bg-green-700 text-white"
+                                    disabled={isExporting}
+                                    onClick={handleDownloadToday}
+                                >
+                                    {isExporting ? (
+                                        <><Loader2 className="w-4 h-4 animate-spin" /> Generando...</>
+                                    ) : (
+                                        <><Download className="w-4 h-4" /> Generar reporte de hoy</>
+                                    )}
+                                </Button>
+                            </div>
+
+                            {/* Opción 2: Reporte del Mes */}
+                            <div className="space-y-4 bg-slate-50/50 p-5 rounded-lg border border-border">
+                                <div>
+                                    <h3 className="font-medium text-foreground flex items-center gap-2">
+                                        <CalendarDays className="w-4 h-4 text-primary" />
+                                        Reporte Mensual
+                                    </h3>
+                                    <p className="text-sm text-muted-foreground mt-1">
+                                        Genera un resumen acumulado de todo un mes. El negocio empezó en marzo de 2026.
+                                    </p>
+                                </div>
+                                <div className="flex flex-col sm:flex-row gap-4 items-end">
+                                    <div className="space-y-1 w-full sm:w-auto">
+                                        <label className="text-sm font-medium text-muted-foreground">Mes</label>
+                                        <Select value={selectedMonth} onValueChange={setSelectedMonth} disabled={isExporting}>
+                                            <SelectTrigger className="w-full sm:w-[150px]">
+                                                <SelectValue placeholder="Mes" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {[
+                                                    { v: "0", l: "Enero" }, { v: "1", l: "Febrero" },
+                                                    { v: "2", l: "Marzo" }, { v: "3", l: "Abril" },
+                                                    { v: "4", l: "Mayo" }, { v: "5", l: "Junio" },
+                                                    { v: "6", l: "Julio" }, { v: "7", l: "Agosto" },
+                                                    { v: "8", l: "Septiembre" }, { v: "9", l: "Octubre" },
+                                                    { v: "10", l: "Noviembre" }, { v: "11", l: "Diciembre" }
+                                                ].map(m => (
+                                                    <SelectItem key={m.v} value={m.v} disabled={parseInt(m.v) < 2 && selectedYear === "2026"}>
+                                                        {m.l}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-1 w-full sm:w-auto">
+                                        <label className="text-sm font-medium text-muted-foreground">Año</label>
+                                        <Select value={selectedYear} onValueChange={setSelectedYear} disabled={isExporting}>
+                                            <SelectTrigger className="w-full sm:w-[120px]">
+                                                <SelectValue placeholder="Año" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="2026">2026</SelectItem>
+                                                <SelectItem value="2027">2027</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <Button
+                                        className="w-full sm:w-auto gap-2 bg-green-600 hover:bg-green-700 text-white mt-4 sm:mt-0"
+                                        disabled={isExporting}
+                                        onClick={handleDownloadMonth}
+                                    >
+                                        {isExporting ? (
+                                            <><Loader2 className="w-4 h-4 animate-spin" /> Generando...</>
+                                        ) : (
+                                            <><Download className="w-4 h-4" /> Generar reporte del mes</>
+                                        )}
+                                    </Button>
                                 </div>
                             </div>
-                            <Button
-                                className="w-full gap-2 bg-green-600 hover:bg-green-700 text-white"
-                                disabled={!startDate2 || !endDate2 || isExporting2}
-                                onClick={downloadReport2}
-                            >
-                                {isExporting2 ? (
-                                    <><Loader2 className="w-4 h-4 animate-spin" /> Generando Reporte...</>
-                                ) : (
-                                    <><Download className="w-4 h-4" /> Descargar CSV de Avances</>
-                                )}
-                            </Button>
+
                         </div>
                     </CardContent>
                 </Card>

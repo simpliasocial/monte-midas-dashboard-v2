@@ -5,13 +5,12 @@ interface WeeklyTrendProps {
   data: Array<{
     week: string;
     leads: number;
-    leads_entrantes: number;
-    a_: number;
-    b1: number;
-    b2: number;
+    interesado: number;
+    crear_confianza: number;
+    crear_urgencia: number;
     cita_agendada: number;
     cita_agendadajess: number;
-    c1: number;
+    desinteresado: number;
     venta_exitosa: number;
   }>;
   className?: string;
@@ -19,13 +18,12 @@ interface WeeklyTrendProps {
 
 const LABEL_COLORS: Record<string, { stroke: string; name: string }> = {
   leads: { stroke: "hsl(224, 62%, 32%)", name: "Leads (Total)" },
-  leads_entrantes: { stroke: "hsl(200, 70%, 50%)", name: "leads_entrantes" },
-  a_: { stroke: "hsl(260, 60%, 50%)", name: "a_" },
-  b1: { stroke: "hsl(142, 60%, 45%)", name: "b1" },
-  b2: { stroke: "hsl(142, 60%, 55%)", name: "b2" },
+  interesado: { stroke: "hsl(260, 60%, 50%)", name: "interesado" },
+  crear_confianza: { stroke: "hsl(142, 60%, 45%)", name: "crear_confianza" },
+  crear_urgencia: { stroke: "hsl(142, 60%, 55%)", name: "crear_urgencia" },
   cita_agendada: { stroke: "hsl(45, 93%, 48%)", name: "cita_agendada" },
   cita_agendadajess: { stroke: "hsl(35, 93%, 50%)", name: "cita_agendadajess" },
-  c1: { stroke: "hsl(0, 70%, 60%)", name: "c1" },
+  desinteresado: { stroke: "hsl(0, 70%, 60%)", name: "desinteresado" },
   venta_exitosa: { stroke: "hsl(160, 84%, 39%)", name: "venta_exitosa" },
 };
 

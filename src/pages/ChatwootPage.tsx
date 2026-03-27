@@ -16,17 +16,28 @@ const ChatwootPage = () => {
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(1);
     const [search, setSearch] = useState('');
-    // NUEVO ESQUEMA DE ETIQUETAS - 6 etiquetas fijas
     const [labels] = useState<string[]>([
-        'a_',
-        'b1',
-        'b2',
-        'c1',
+        'Interesado',
+        'crear_confianza',
+        'crear_urgencia',
+        'desinteresado',
         'cita_agendada',
-        'cita_agendadajess',
-        'leads_entrantes',
+        'cita_agendada_jess',
         'venta_exitosa'
     ]);
+
+    const formatLabel = (label: string) => {
+        const mapping: Record<string, string> = {
+            'Interesado': 'Interesado',
+            'crear_confianza': 'Crear Confianza',
+            'crear_urgencia': 'Crear Urgencia',
+            'cita_agendada': 'Cita Agendada',
+            'cita_agendada_jess': 'Cita Agendada Jess',
+            'desinteresado': 'Desinteresado',
+            'venta_exitosa': 'Venta Exitosa'
+        };
+        return mapping[label] || label;
+    };
     const [selectedLabel, setSelectedLabel] = useState<string>('all');
 
     // NUEVO - Filtrado por canal (inbox)
@@ -270,7 +281,7 @@ const ChatwootPage = () => {
                                     <SelectItem value="all">Todas las etiquetas</SelectItem>
                                     {Array.from(new Set(labels)).map((label) => (
                                         <SelectItem key={label} value={label}>
-                                            {label}
+                                            {formatLabel(label)}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
@@ -355,7 +366,7 @@ const ChatwootPage = () => {
                                                                 {conv.labels.map((label) => (
                                                                     <Badge key={label} variant="secondary" className="text-xs font-normal">
                                                                         <Tag className="w-3 h-3 mr-1 opacity-70" />
-                                                                        {label}
+                                                                        {formatLabel(label)}
                                                                     </Badge>
                                                                 ))}
                                                             </div>
