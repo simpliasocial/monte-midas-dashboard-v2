@@ -44,6 +44,7 @@ export const chatwootService = {
         until?: string;
         labels?: string[];
         inbox_id?: number | string;
+        signal?: AbortSignal;
     } = {}): Promise<{ payload: ChatwootConversation[]; meta: any }> => {
         try {
             // If 'q' is present, we perform a Contact Search first to find the specific person
@@ -51,7 +52,8 @@ export const chatwootService = {
                 console.log('Searching contacts for:', params.q);
                 const contactsResponse = await axios.get(`${CHATWOOT_API_URL}/contacts/search`, {
                     headers: { api_access_token: API_TOKEN },
-                    params: { q: params.q }
+                    params: { q: params.q },
+                    signal: params.signal
                 });
 
                 const contacts = contactsResponse.data.payload;
@@ -100,7 +102,7 @@ export const chatwootService = {
                 };
             }
 
-            // Normal flow (no search query)
+            console.log(`[API] GET /conversations - Page: ${params.page || 1}`);
             const response = await axios.get(`${CHATWOOT_API_URL}/conversations`, {
                 headers: {
                     api_access_token: API_TOKEN,
@@ -113,10 +115,13 @@ export const chatwootService = {
                     until: params.until,
                     labels: params.labels ? params.labels.join(',') : undefined,
                     inbox_id: params.inbox_id,
-                    _t: Date.now(), // Cache buster para polling en vivo
+                    _t: Date.now(),
                 },
+                signal: params.signal,
+                timeout: 15000 // 15 seconds timeout
             });
-            return response.data.data;
+            // Try to return .data.data (wrapped) or fallback to .data (direct)
+            return response.data.data || response.data;
         } catch (error) {
             console.error('Error fetching Chatwoot conversations:', error);
             throw error;
@@ -139,10 +144,12 @@ export const chatwootService = {
 
     getInboxes: async (): Promise<any[]> => {
         try {
+            console.log('[API] GET /inboxes');
             const response = await axios.get(`${CHATWOOT_API_URL}/inboxes`, {
                 headers: {
                     api_access_token: API_TOKEN,
                 },
+                timeout: 10000
             });
             return response.data.payload;
         } catch (error) {

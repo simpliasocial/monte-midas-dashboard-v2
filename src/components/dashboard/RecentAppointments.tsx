@@ -7,7 +7,7 @@ import {
     TableRow
 } from "@/components/ui/table";
 
-import { Calendar, Clock, MapPin, Phone, User } from "lucide-react";
+import { Calendar, Clock, MapPin, Phone, Radio, User } from "lucide-react";
 
 export interface Appointment {
     id: number;
@@ -16,6 +16,7 @@ export interface Appointment {
     agencia: string;
     fecha: string;
     hora: string;
+    canal?: string;
     status: string;
 }
 
@@ -35,9 +36,9 @@ export function RecentAppointments({ appointments = [] }: RecentAppointmentsProp
                     <TableRow>
                         <TableHead className="w-[200px]">Cliente</TableHead>
                         <TableHead>Contacto</TableHead>
+                        <TableHead>Canal</TableHead>
                         <TableHead>Agencia</TableHead>
                         <TableHead>Fecha y Hora</TableHead>
-
                     </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -53,6 +54,12 @@ export function RecentAppointments({ appointments = [] }: RecentAppointmentsProp
                                 <div className="flex items-center gap-2">
                                     <Phone className="h-4 w-4 text-muted-foreground" />
                                     {appointment.celular}
+                                </div>
+                            </TableCell>
+                            <TableCell>
+                                <div className="flex items-center gap-2">
+                                    <Radio className="h-4 w-4 text-muted-foreground" />
+                                    <span className="text-xs font-medium">{appointment.canal || '—'}</span>
                                 </div>
                             </TableCell>
                             <TableCell>
@@ -73,7 +80,6 @@ export function RecentAppointments({ appointments = [] }: RecentAppointmentsProp
                                     </div>
                                 </div>
                             </TableCell>
-
                         </TableRow>
                     ))}
                 </TableBody>
