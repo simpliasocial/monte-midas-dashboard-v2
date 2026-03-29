@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Download, Loader2, Activity, CalendarDays } from 'lucide-react';
 import { toast } from 'sonner';
 import { chatwootService } from '@/services/ChatwootService';
+import { config } from '@/config';
 
 const ReportsPage = () => {
     const [isExporting, setIsExporting] = useState(false);
@@ -108,24 +109,29 @@ const ReportsPage = () => {
             }
         });
 
-        let csvContent = "data:text/csv;charset=utf-8,";
-        csvContent += "Resumen de Etiquetas\n";
-        csvContent += `Fecha Inicio,${startDate}\n`;
-        csvContent += `Fecha Fin,${endDate}\n\n`;
+        const lines: string[] = [];
+
+        // --- SECCIÓN 1: RESUMEN ---
+        lines.push("=====================================================================================================");
+        lines.push("RESUMEN DE ETIQUETAS");
+        lines.push("=====================================================================================================");
+        lines.push(`Fecha Inicio,${startDate}`);
+        lines.push(`Fecha Fin,${endDate}`);
+        lines.push("");
 
         // HEADER ROW
         let headerRow = "Etiqueta,Total";
         inboxes.forEach(inbox => {
             headerRow += `,${getInboxDisplayName(inbox.name)}`;
         });
-        csvContent += headerRow + "\n";
+        lines.push(headerRow);
 
         Object.keys(labelCounts).forEach(label => {
             let row = `${label},${labelCounts[label].total}`;
             inboxes.forEach(inbox => {
                 row += `,${labelCounts[label][inbox.id] || 0}`;
             });
-            csvContent += row + "\n";
+            lines.push(row);
         });
 
         let totalSum = 0;
@@ -139,20 +145,94 @@ const ReportsPage = () => {
             });
         });
 
-        let footerRow = `${labelTitle},${totalSum}`;
+        let footerRow = `${labelTitle.replace('Total Leads', 'Total Etiquetas Asignadas')},${totalSum}`;
         inboxes.forEach(inbox => {
             footerRow += `,${sumPerInbox[inbox.id]}`;
         });
+        lines.push(footerRow);
 
-        csvContent += `\n${footerRow}\n`;
+        lines.push(`Total Leads Unicos en Total,${filteredConvs.length}`);
+        lines.push("");
+        lines.push("");
 
-        const encodedUri = encodeURI(csvContent);
+        // --- SECCIÓN 2: DETALLE DE LEADS ---
+        lines.push("=====================================================================================================");
+        lines.push("DETALLE DE LEADS");
+        lines.push("=====================================================================================================");
+
+        const detailedHeaders = [
+            "ID Conversacion",
+            "Nombre del Lead",
+            "Telefono/Celular",
+            "Canal",
+            "Etiquetas",
+            "Nombre Completo (Attr)",
+            "Correo",
+            "Ciudad",
+            "Edad",
+            "Fecha Visita",
+            "Hora Visita",
+            "Agencia",
+            "Enlace Chatwoot"
+        ];
+        lines.push(detailedHeaders.join(","));
+
+        const escapeCSV = (str: any) => {
+            if (str === null || str === undefined) return '""';
+            const s = String(str).replace(/"/g, '""');
+            return `"${s}"`;
+        };
+
+        filteredConvs.forEach(conv => {
+            const cA = conv.meta?.sender?.custom_attributes || {};
+            const vA = conv.custom_attributes || {};
+
+            const canal = getInboxDisplayName(inboxes.find(i => i.id === conv.inbox_id)?.name || '');
+
+            // Lógica para el celular
+            let telefonoPrincipal = "";
+            if (canal.toLowerCase().includes('whatsapp')) {
+                telefonoPrincipal = conv.meta?.sender?.phone_number || cA.celular || vA.celular || "";
+            } else {
+                telefonoPrincipal = cA.celular || vA.celular || "";
+            }
+
+            // Evitar notación científica en Excel (Ej: 5.9398E+11) agregando un tabulador
+            if (telefonoPrincipal) {
+                telefonoPrincipal = `\t${telefonoPrincipal}`;
+            }
+
+            const rowData = [
+                conv.id,
+                conv.meta?.sender?.name || 'Sin Nombre',
+                telefonoPrincipal,
+                canal,
+                (conv.labels || []).join(' | '),
+                cA.nombre_completo || vA.nombre_completo || "",
+                cA.correo || vA.correo || conv.meta?.sender?.email || "",
+                cA.ciudad || vA.ciudad || "",
+                cA.edad || vA.edad || "",
+                cA.fecha_visita || vA.fecha_visita || "",
+                cA.hora_visita || vA.hora_visita || "",
+                cA.agencia || vA.agencia || "",
+                `${config.chatwoot.publicUrl}/app/accounts/1/conversations/${conv.id}`
+            ];
+
+            lines.push(rowData.map(escapeCSV).join(","));
+        });
+
+        // Crear y descargar el archivo asegurando codificación UTF-8 con BOM
+        const csvContent = lines.join("\n");
+        const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+
         const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
+        link.setAttribute("href", url);
         link.setAttribute("download", `${filename}_${new Date().toISOString().split('T')[0]}.csv`);
         document.body.appendChild(link);
         link.click();
         link.remove();
+        URL.revokeObjectURL(url);
     };
 
     const downloadReport = async (start: string, end: string, type: 'hoy' | 'mes') => {
