@@ -67,7 +67,7 @@ const Index = () => {
       filtered.filter((c: any) => c.labels && c.labels.includes(label)).length;
 
     return [
-      { label: "Interesado", value: countLabel('Interesado'), percentage: total > 0 ? Math.round((countLabel('Interesado') / total) * 100) : 0, color: "hsl(224, 62%, 32%)" },
+      { label: "Interesado", value: countLabel('interesado'), percentage: total > 0 ? Math.round((countLabel('interesado') / total) * 100) : 0, color: "hsl(224, 62%, 32%)" },
       { label: "Crear Confianza", value: countLabel('crear_confianza'), percentage: total > 0 ? Math.round((countLabel('crear_confianza') / total) * 100) : 0, color: "hsl(142, 60%, 45%)" },
       { label: "Crear Urgencia", value: countLabel('crear_urgencia'), percentage: total > 0 ? Math.round((countLabel('crear_urgencia') / total) * 100) : 0, color: "hsl(142, 60%, 55%)" },
       { label: "Cita Agendada", value: countLabel('cita_agendada'), percentage: total > 0 ? Math.round((countLabel('cita_agendada') / total) * 100) : 0, color: "hsl(45, 93%, 58%)" },

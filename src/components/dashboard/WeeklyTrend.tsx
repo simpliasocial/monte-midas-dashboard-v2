@@ -9,7 +9,7 @@ interface WeeklyTrendProps {
     crear_confianza: number;
     crear_urgencia: number;
     cita_agendada: number;
-    cita_agendadajess: number;
+    cita_agendada_jess: number;
     desinteresado: number;
     venta_exitosa: number;
   }>;
@@ -22,7 +22,7 @@ const LABEL_COLORS: Record<string, { stroke: string; name: string }> = {
   crear_confianza: { stroke: "hsl(142, 60%, 45%)", name: "crear_confianza" },
   crear_urgencia: { stroke: "hsl(142, 60%, 55%)", name: "crear_urgencia" },
   cita_agendada: { stroke: "hsl(45, 93%, 48%)", name: "cita_agendada" },
-  cita_agendadajess: { stroke: "hsl(35, 93%, 50%)", name: "cita_agendadajess" },
+  cita_agendada_jess: { stroke: "hsl(35, 93%, 50%)", name: "cita_agendada_jess" },
   desinteresado: { stroke: "hsl(0, 70%, 60%)", name: "desinteresado" },
   venta_exitosa: { stroke: "hsl(160, 84%, 39%)", name: "venta_exitosa" },
 };

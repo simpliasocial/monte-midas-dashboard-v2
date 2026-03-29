@@ -17,7 +17,7 @@ const ChatwootPage = () => {
     const [page, setPage] = useState(1);
     const [search, setSearch] = useState('');
     const [labels] = useState<string[]>([
-        'Interesado',
+        'interesado',
         'crear_confianza',
         'crear_urgencia',
         'desinteresado',
@@ -28,7 +28,7 @@ const ChatwootPage = () => {
 
     const formatLabel = (label: string) => {
         const mapping: Record<string, string> = {
-            'Interesado': 'Interesado',
+            'interesado': 'Interesado',
             'crear_confianza': 'Crear Confianza',
             'crear_urgencia': 'Crear Urgencia',
             'cita_agendada': 'Cita Agendada',

@@ -39,7 +39,7 @@ const ReportsPage = () => {
     };
 
     const labels = [
-        'Interesado', 'crear_confianza', 'crear_urgencia', 'desinteresado', 'cita_agendada', 'cita_agendada_jess', 'venta_exitosa'
+        'interesado', 'crear_confianza', 'crear_urgencia', 'desinteresado', 'cita_agendada', 'cita_agendada_jess', 'venta_exitosa'
     ];
 
     const fetchAllConversations = async (startDate: string, endDate: string, inboxId: string) => {
