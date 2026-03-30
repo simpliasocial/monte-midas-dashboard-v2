@@ -6,11 +6,14 @@ import { Download, Loader2, Activity, CalendarDays } from 'lucide-react';
 import { toast } from 'sonner';
 import { chatwootService } from '@/services/ChatwootService';
 import { config } from '@/config';
+import * as XLSX from 'xlsx';
 
 const ReportsPage = () => {
     const [isExporting, setIsExporting] = useState(false);
     const [selectedMonth, setSelectedMonth] = useState<string>((new Date().getMonth()).toString());
     const [selectedYear, setSelectedYear] = useState<string>("2026");
+    const [customStartDate, setCustomStartDate] = useState<string>("");
+    const [customEndDate, setCustomEndDate] = useState<string>("");
 
     const [inboxes, setInboxes] = useState<any[]>([]);
 
@@ -84,7 +87,7 @@ const ReportsPage = () => {
         return allConvs;
     };
 
-    const generateCSV = (filteredConvs: any[], labelTitle: string, filename: string, startDate: string, endDate: string) => {
+    const generateExcel = (filteredConvs: any[], createdConvs: any[], labelTitle: string, filename: string, startDate: string, endDate: string) => {
         const labelCounts: Record<string, any> = {};
 
         labels.forEach(l => {
@@ -109,29 +112,24 @@ const ReportsPage = () => {
             }
         });
 
-        const lines: string[] = [];
-
         // --- SECCIÓN 1: RESUMEN ---
-        lines.push("=====================================================================================================");
-        lines.push("RESUMEN DE ETIQUETAS");
-        lines.push("=====================================================================================================");
-        lines.push(`Fecha Inicio,${startDate}`);
-        lines.push(`Fecha Fin,${endDate}`);
-        lines.push("");
+        const resumenData: any[][] = [];
+        resumenData.push([`Fecha Inicio`, startDate]);
+        resumenData.push([`Fecha Fin`, endDate]);
+        resumenData.push([]);
 
-        // HEADER ROW
-        let headerRow = "Etiqueta,Total";
+        const headerRow1 = ["Etiqueta", "Total"];
         inboxes.forEach(inbox => {
-            headerRow += `,${getInboxDisplayName(inbox.name)}`;
+            headerRow1.push(getInboxDisplayName(inbox.name));
         });
-        lines.push(headerRow);
+        resumenData.push(headerRow1);
 
         Object.keys(labelCounts).forEach(label => {
-            let row = `${label},${labelCounts[label].total}`;
+            let row = [label, labelCounts[label].total];
             inboxes.forEach(inbox => {
-                row += `,${labelCounts[label][inbox.id] || 0}`;
+                row.push(labelCounts[label][inbox.id] || 0);
             });
-            lines.push(row);
+            resumenData.push(row);
         });
 
         let totalSum = 0;
@@ -145,21 +143,17 @@ const ReportsPage = () => {
             });
         });
 
-        let footerRow = `${labelTitle.replace('Total Leads', 'Total Etiquetas Asignadas')},${totalSum}`;
+        let footerRow = [labelTitle.replace('Total Leads', 'Total Etiquetas Asignadas'), totalSum];
         inboxes.forEach(inbox => {
-            footerRow += `,${sumPerInbox[inbox.id]}`;
+            footerRow.push(sumPerInbox[inbox.id]);
         });
-        lines.push(footerRow);
+        resumenData.push(footerRow);
 
-        lines.push(`Total Leads Unicos en Total,${filteredConvs.length}`);
-        lines.push("");
-        lines.push("");
+        resumenData.push([]);
+        resumenData.push([`Total Leads Unicos en Total`, filteredConvs.length]);
 
         // --- SECCIÓN 2: DETALLE DE LEADS ---
-        lines.push("=====================================================================================================");
-        lines.push("DETALLE DE LEADS");
-        lines.push("=====================================================================================================");
-
+        const detalleData: any[][] = [];
         const detailedHeaders = [
             "ID Conversacion",
             "Nombre del Lead",
@@ -169,19 +163,14 @@ const ReportsPage = () => {
             "Nombre Completo (Attr)",
             "Correo",
             "Ciudad",
+            "Campaña",
             "Edad",
             "Fecha Visita",
             "Hora Visita",
             "Agencia",
             "Enlace Chatwoot"
         ];
-        lines.push(detailedHeaders.join(","));
-
-        const escapeCSV = (str: any) => {
-            if (str === null || str === undefined) return '""';
-            const s = String(str).replace(/"/g, '""');
-            return `"${s}"`;
-        };
+        detalleData.push(detailedHeaders);
 
         filteredConvs.forEach(conv => {
             const cA = conv.meta?.sender?.custom_attributes || {};
@@ -189,17 +178,11 @@ const ReportsPage = () => {
 
             const canal = getInboxDisplayName(inboxes.find(i => i.id === conv.inbox_id)?.name || '');
 
-            // Lógica para el celular
             let telefonoPrincipal = "";
             if (canal.toLowerCase().includes('whatsapp')) {
                 telefonoPrincipal = conv.meta?.sender?.phone_number || cA.celular || vA.celular || "";
             } else {
                 telefonoPrincipal = cA.celular || vA.celular || "";
-            }
-
-            // Evitar notación científica en Excel (Ej: 5.9398E+11) agregando un tabulador
-            if (telefonoPrincipal) {
-                telefonoPrincipal = `\t${telefonoPrincipal}`;
             }
 
             const rowData = [
@@ -211,6 +194,7 @@ const ReportsPage = () => {
                 cA.nombre_completo || vA.nombre_completo || "",
                 cA.correo || vA.correo || conv.meta?.sender?.email || "",
                 cA.ciudad || vA.ciudad || "",
+                cA.campana || vA.campana || "",
                 cA.edad || vA.edad || "",
                 cA.fecha_visita || vA.fecha_visita || "",
                 cA.hora_visita || vA.hora_visita || "",
@@ -218,24 +202,63 @@ const ReportsPage = () => {
                 `${config.chatwoot.publicUrl}/app/accounts/1/conversations/${conv.id}`
             ];
 
-            lines.push(rowData.map(escapeCSV).join(","));
+            detalleData.push(rowData);
         });
 
-        // Crear y descargar el archivo asegurando codificación UTF-8 con BOM
-        const csvContent = lines.join("\n");
-        const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
+        // --- SECCIÓN 3: CONVERSACIONES NUEVAS ---
+        const nuevasData: any[][] = [];
+        nuevasData.push(detailedHeaders);
 
-        const link = document.createElement("a");
-        link.setAttribute("href", url);
-        link.setAttribute("download", `${filename}_${new Date().toISOString().split('T')[0]}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        URL.revokeObjectURL(url);
+        createdConvs.forEach(conv => {
+            const cA = conv.meta?.sender?.custom_attributes || {};
+            const vA = conv.custom_attributes || {};
+
+            const canal = getInboxDisplayName(inboxes.find(i => i.id === conv.inbox_id)?.name || '');
+            let telefonoPrincipal = "";
+            if (canal.toLowerCase().includes('whatsapp')) {
+                telefonoPrincipal = conv.meta?.sender?.phone_number || cA.celular || vA.celular || "";
+            } else {
+                telefonoPrincipal = cA.celular || vA.celular || "";
+            }
+
+            const rowData = [
+                conv.id,
+                conv.meta?.sender?.name || 'Sin Nombre',
+                telefonoPrincipal,
+                canal,
+                (conv.labels || []).join(' | '),
+                cA.nombre_completo || vA.nombre_completo || "",
+                cA.correo || vA.correo || conv.meta?.sender?.email || "",
+                cA.ciudad || vA.ciudad || "",
+                cA.campana || vA.campana || "",
+                cA.edad || vA.edad || "",
+                cA.fecha_visita || vA.fecha_visita || "",
+                cA.hora_visita || vA.hora_visita || "",
+                cA.agencia || vA.agencia || "",
+                `${config.chatwoot.publicUrl}/app/accounts/1/conversations/${conv.id}`
+            ];
+
+            nuevasData.push(rowData);
+        });
+
+        const wb = XLSX.utils.book_new();
+        const wsResumen = XLSX.utils.aoa_to_sheet(resumenData);
+        if (wsResumen['!ref']) wsResumen['!autofilter'] = { ref: wsResumen['!ref'] };
+
+        const wsDetalle = XLSX.utils.aoa_to_sheet(detalleData);
+        if (wsDetalle['!ref']) wsDetalle['!autofilter'] = { ref: wsDetalle['!ref'] };
+
+        const wsNuevas = XLSX.utils.aoa_to_sheet(nuevasData);
+        if (wsNuevas['!ref']) wsNuevas['!autofilter'] = { ref: wsNuevas['!ref'] };
+
+        XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen de Etiquetas");
+        XLSX.utils.book_append_sheet(wb, wsDetalle, "Detalle de Leads");
+        XLSX.utils.book_append_sheet(wb, wsNuevas, "Conversaciones");
+
+        XLSX.writeFile(wb, `${filename}_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
-    const downloadReport = async (start: string, end: string, type: 'hoy' | 'mes') => {
+    const downloadReport = async (start: string, end: string, type: 'hoy' | 'mes' | 'rango') => {
         setIsExporting(true);
         const toastId = toast.loading(`Descargando reporte de ${type}...`);
         try {
@@ -250,7 +273,14 @@ const ReportsPage = () => {
                 return convTime >= startTimestamp && convTime <= endTimestamp;
             });
 
-            generateCSV(filteredConvs, `Total Leads con Actividad (${type})`, `reporte_avance_${type}`, start, end);
+            // Filtrar por FECHA DE CREACION para empatar con la vista "Conversaciones" de Chatwoot
+            const createdConvs = allConvs.filter(conv => {
+                // If created_at is present, use it. Else fallback to timestamp
+                const creationTime = (conv.created_at || conv.timestamp) * 1000;
+                return creationTime >= startTimestamp && creationTime <= endTimestamp;
+            });
+
+            generateExcel(filteredConvs, createdConvs, `Total Leads con Actividad (${type})`, `reporte_avance_${type}`, start, end);
             toast.success('Reporte exportado correctamente', { id: toastId });
         } catch (error) {
             console.error(error);
@@ -278,6 +308,18 @@ const ReportsPage = () => {
         const endStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
 
         downloadReport(startStr, endStr, 'mes');
+    };
+
+    const handleDownloadCustomDate = () => {
+        if (!customStartDate || !customEndDate) {
+            toast.error("Selecciona fecha de inicio y fin");
+            return;
+        }
+        if (new Date(customStartDate) > new Date(customEndDate)) {
+            toast.error("La fecha de inicio debe ser menor o igual a la de fin");
+            return;
+        }
+        downloadReport(customStartDate, customEndDate, 'rango');
     };
 
     return (
@@ -376,6 +418,52 @@ const ReportsPage = () => {
                                             <><Loader2 className="w-4 h-4 animate-spin" /> Generando...</>
                                         ) : (
                                             <><Download className="w-4 h-4" /> Generar reporte del mes</>
+                                        )}
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {/* Opción 3: Reporte Personalizado */}
+                            <div className="space-y-4 bg-slate-50/50 p-5 rounded-lg border border-border">
+                                <div>
+                                    <h3 className="font-medium text-foreground flex items-center gap-2">
+                                        <CalendarDays className="w-4 h-4 text-primary" />
+                                        Reporte por Fechas
+                                    </h3>
+                                    <p className="text-sm text-muted-foreground mt-1">
+                                        Genera un resumen para un rango de fechas específico.
+                                    </p>
+                                </div>
+                                <div className="flex flex-col sm:flex-row gap-4 items-end">
+                                    <div className="space-y-1 w-full sm:w-auto">
+                                        <label className="text-sm font-medium text-muted-foreground">Fecha Inicio</label>
+                                        <input
+                                            type="date"
+                                            className="flex h-10 w-full sm:w-[150px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                            value={customStartDate}
+                                            onChange={(e) => setCustomStartDate(e.target.value)}
+                                            disabled={isExporting}
+                                        />
+                                    </div>
+                                    <div className="space-y-1 w-full sm:w-auto">
+                                        <label className="text-sm font-medium text-muted-foreground">Fecha Fin</label>
+                                        <input
+                                            type="date"
+                                            className="flex h-10 w-full sm:w-[150px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                            value={customEndDate}
+                                            onChange={(e) => setCustomEndDate(e.target.value)}
+                                            disabled={isExporting}
+                                        />
+                                    </div>
+                                    <Button
+                                        className="w-full sm:w-auto gap-2 bg-green-600 hover:bg-green-700 text-white mt-4 sm:mt-0"
+                                        disabled={isExporting}
+                                        onClick={handleDownloadCustomDate}
+                                    >
+                                        {isExporting ? (
+                                            <><Loader2 className="w-4 h-4 animate-spin" /> Generando...</>
+                                        ) : (
+                                            <><Download className="w-4 h-4" /> Generar reporte</>
                                         )}
                                     </Button>
                                 </div>
