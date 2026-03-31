@@ -89,11 +89,14 @@ const ReportsPage = () => {
 
     const generateExcel = (filteredConvs: any[], createdConvs: any[], labelTitle: string, filename: string, startDate: string, endDate: string) => {
         const labelCounts: Record<string, any> = {};
+        const labelCountsUnicas: Record<string, any> = {};
 
         labels.forEach(l => {
             labelCounts[l] = { total: 0 };
+            labelCountsUnicas[l] = { total: 0 };
             inboxes.forEach(inbox => {
                 labelCounts[l][inbox.id] = 0;
+                labelCountsUnicas[l][inbox.id] = 0;
             });
         });
 
@@ -112,7 +115,22 @@ const ReportsPage = () => {
             }
         });
 
-        // --- SECCIÓN 1: RESUMEN ---
+        createdConvs.forEach(conv => {
+            if (conv.labels) {
+                conv.labels.forEach((l: string) => {
+                    if (labelCountsUnicas[l]) {
+                        labelCountsUnicas[l].total++;
+                        if (labelCountsUnicas[l][conv.inbox_id] !== undefined) {
+                            labelCountsUnicas[l][conv.inbox_id]++;
+                        } else {
+                            labelCountsUnicas[l][conv.inbox_id] = 1;
+                        }
+                    }
+                });
+            }
+        });
+
+        // --- SECCIÓN 1: RESUMEN DE ACTIVIDADES ---
         const resumenData: any[][] = [];
         resumenData.push([`Fecha Inicio`, startDate]);
         resumenData.push([`Fecha Fin`, endDate]);
@@ -150,9 +168,9 @@ const ReportsPage = () => {
         resumenData.push(footerRow);
 
         resumenData.push([]);
-        resumenData.push([`Total Leads Unicos en Total`, filteredConvs.length]);
+        resumenData.push([`Total Leads de Actividades`, filteredConvs.length]);
 
-        // --- SECCIÓN 2: DETALLE DE LEADS ---
+        // --- SECCIÓN 2: DETALLE DE LEADS DE ACTIVIDADES ---
         const detalleData: any[][] = [];
         const detailedHeaders = [
             "ID Conversacion",
@@ -205,7 +223,43 @@ const ReportsPage = () => {
             detalleData.push(rowData);
         });
 
-        // --- SECCIÓN 3: CONVERSACIONES NUEVAS ---
+        // --- SECCIÓN 3: RESUMEN DE ETIQUETAS ÚNICAS ---
+        const resumenUnicasData: any[][] = [];
+        resumenUnicasData.push([`Fecha Inicio`, startDate]);
+        resumenUnicasData.push([`Fecha Fin`, endDate]);
+        resumenUnicasData.push([]);
+
+        resumenUnicasData.push(headerRow1);
+
+        Object.keys(labelCountsUnicas).forEach(label => {
+            let row = [label, labelCountsUnicas[label].total];
+            inboxes.forEach(inbox => {
+                row.push(labelCountsUnicas[label][inbox.id] || 0);
+            });
+            resumenUnicasData.push(row);
+        });
+
+        let totalSumUnicas = 0;
+        const sumPerInboxUnicas: Record<number, number> = {};
+        inboxes.forEach(inbox => sumPerInboxUnicas[inbox.id] = 0);
+
+        Object.keys(labelCountsUnicas).forEach(label => {
+            totalSumUnicas += labelCountsUnicas[label].total;
+            inboxes.forEach(inbox => {
+                sumPerInboxUnicas[inbox.id] += (labelCountsUnicas[label][inbox.id] || 0);
+            });
+        });
+
+        let footerRowUnicas = ["Total Etiquetas Asignadas", totalSumUnicas];
+        inboxes.forEach(inbox => {
+            footerRowUnicas.push(sumPerInboxUnicas[inbox.id]);
+        });
+        resumenUnicasData.push(footerRowUnicas);
+
+        resumenUnicasData.push([]);
+        resumenUnicasData.push([`Total Leads Unicos`, createdConvs.length]);
+
+        // --- SECCIÓN 4: CONVERSACIONES ÚNICAS ---
         const nuevasData: any[][] = [];
         nuevasData.push(detailedHeaders);
 
@@ -248,12 +302,16 @@ const ReportsPage = () => {
         const wsDetalle = XLSX.utils.aoa_to_sheet(detalleData);
         if (wsDetalle['!ref']) wsDetalle['!autofilter'] = { ref: wsDetalle['!ref'] };
 
+        const wsResumenUnicas = XLSX.utils.aoa_to_sheet(resumenUnicasData);
+        if (wsResumenUnicas['!ref']) wsResumenUnicas['!autofilter'] = { ref: wsResumenUnicas['!ref'] };
+
         const wsNuevas = XLSX.utils.aoa_to_sheet(nuevasData);
         if (wsNuevas['!ref']) wsNuevas['!autofilter'] = { ref: wsNuevas['!ref'] };
 
-        XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen de Etiquetas");
-        XLSX.utils.book_append_sheet(wb, wsDetalle, "Detalle de Leads");
-        XLSX.utils.book_append_sheet(wb, wsNuevas, "Conversaciones");
+        XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen Etiquetas Actividades");
+        XLSX.utils.book_append_sheet(wb, wsDetalle, "Detalle Leads Actividades");
+        XLSX.utils.book_append_sheet(wb, wsResumenUnicas, "Resumen Etiquetas Unicas");
+        XLSX.utils.book_append_sheet(wb, wsNuevas, "Detalle Leads Unicas");
 
         XLSX.writeFile(wb, `${filename}_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
