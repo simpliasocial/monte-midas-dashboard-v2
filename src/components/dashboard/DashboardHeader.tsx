@@ -21,7 +21,7 @@ export function DashboardHeader({ className }: DashboardHeaderProps) {
                 Dashboard de Desempeño
               </h1>
               <p className="text-sm text-muted-foreground">
-                Agente Funnel Implanta
+                Agente Funnel Monte Midas
               </p>
             </div>
           </div>

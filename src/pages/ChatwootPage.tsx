@@ -17,26 +17,18 @@ const ChatwootPage = () => {
     const [page, setPage] = useState(1);
     const [search, setSearch] = useState('');
     const [labels] = useState<string[]>([
+        'agenda_cita',
+        'desea_un_credito',
         'interesado',
-        'crear_confianza',
-        'crear_urgencia',
-        'desinteresado',
-        'cita_agendada',
-        'cita_agendada_jess',
+        'no_aplica',
+        'no_tiene_joyas_oro',
+        'solicita_informacion',
+        'tiene_dudas',
         'venta_exitosa'
     ]);
 
     const formatLabel = (label: string) => {
-        const mapping: Record<string, string> = {
-            'interesado': 'Interesado',
-            'crear_confianza': 'Crear Confianza',
-            'crear_urgencia': 'Crear Urgencia',
-            'cita_agendada': 'Cita Agendada',
-            'cita_agendada_jess': 'Cita Agendada Jess',
-            'desinteresado': 'Desinteresado',
-            'venta_exitosa': 'Venta Exitosa'
-        };
-        return mapping[label] || label;
+        return label;
     };
     const [selectedLabel, setSelectedLabel] = useState<string>('all');
 
@@ -197,12 +189,12 @@ const ChatwootPage = () => {
 
     const getInboxDisplayName = (name: string) => {
         switch (name) {
-            case 'Implanta':
-                return 'Facebook - Implanta';
-            case 'implanta.clinic':
-                return 'Instagram - implanta.clinic';
-            case 'simplia Implanta':
-                return 'WhatsApp - simplia Implanta';
+            case 'Monte Midas':
+                return 'Facebook - Monte Midas';
+            case 'montemidas.ec':
+                return 'Instagram - montemidas.ec';
+            case 'simplia Monte Midas':
+                return 'WhatsApp - simplia Monte Midas';
             default:
                 return name;
         }

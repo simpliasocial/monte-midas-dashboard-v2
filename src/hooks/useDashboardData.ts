@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { chatwootService } from '../services/ChatwootService';
 
-const CACHE_KEY = 'implanta_dashboard_cache';
+const CACHE_KEY = 'monte_midas_dashboard_cache';
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 interface CachedData {
@@ -65,7 +65,7 @@ export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek
     const lastSyncRef = useRef<number>(0);
     const isFetchingRef = useRef(false);
     const abortControllerRef = useRef<AbortController | null>(null);
-    const [loading, setLoading] = useState(!cachedData.current);
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [data, setData] = useState(cachedData.current || getDefaultData());
 
@@ -121,13 +121,16 @@ export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek
         const countByLabel = (label: string) => kpiConversations.filter(c => c.labels && c.labels.includes(label)).length;
 
         const interesadoCount = countByLabel('interesado');
-        const crearConfianzaCount = countByLabel('crear_confianza');
-        const crearUrgenciaCount = countByLabel('crear_urgencia');
-        const desinteresadoCount = countByLabel('desinteresado');
-        const citasAgendadas = countByLabel('cita_agendada');
-        const citasAgendadasJess = countByLabel('cita_agendada_jess');
-        const ventaExitosa = countByLabel('venta_exitosa');
-        const totalCitas = citasAgendadas + citasAgendadasJess;
+        const deseaCreditoCount = countByLabel('desea_un_credito');
+        const solicitaInformacionCount = countByLabel('solicita_informacion');
+        const tieneDudasCount = countByLabel('tiene_dudas');
+        const noAplicaCount = countByLabel('no_aplica');
+        const noTieneJoyasOroCount = countByLabel('no_tiene_joyas_oro');
+        const agendaCitaCount = countByLabel('agenda_cita');
+        const ventaExitosaCount = countByLabel('venta_exitosa');
+
+        const totalCitas = agendaCitaCount;
+        const noCalifican = noAplicaCount + noTieneJoyasOroCount;
 
         let gananciaMensual = 0;
         let gananciaTotal = allConversations.reduce((sum, conv) => {
@@ -144,7 +147,7 @@ export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek
         }, 0);
 
         const recentAppointments = kpiConversations
-            .filter(c => c.labels && (c.labels.includes('cita_agendada') || c.labels.includes('cita_agendada_jess')))
+            .filter(c => c.labels && (c.labels.includes('agenda_cita')))
             .slice(0, 5)
             .map(conv => {
                 const cA = conv.meta?.sender?.custom_attributes || {};
@@ -183,13 +186,13 @@ export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek
         const targetW = parseInt(selectedWeek);
         const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
         const weeklyTrend = days.map(day => {
-            const stats = { leads: 0, interesado: 0, crear_confianza: 0, crear_urgencia: 0, cita_agendada: 0, cita_agendada_jess: 0, desinteresado: 0, venta_exitosa: 0 };
+            const stats = { leads: 0, interesado: 0, desea_un_credito: 0, agenda_cita: 0, no_aplica: 0, venta_exitosa: 0 };
             allConversations.filter(c => {
                 const d = new Date(c.timestamp * 1000);
                 return d >= trendStart && d <= trendEnd && getWeekNum(d) === targetW && days[d.getDay()] === day;
             }).forEach(c => {
                 stats.leads++;
-                ['interesado', 'crear_confianza', 'crear_urgencia', 'cita_agendada', 'cita_agendada_jess', 'desinteresado', 'venta_exitosa'].forEach(l => {
+                ['interesado', 'desea_un_credito', 'agenda_cita', 'no_aplica', 'venta_exitosa'].forEach(l => {
                     if (c.labels?.includes(l)) (stats as any)[l]++;
                 });
             });
@@ -206,13 +209,13 @@ export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek
             if (monthlyTrendMap.has(wTitle)) {
                 const curr = monthlyTrendMap.get(wTitle);
                 curr.leads++;
-                if (c.labels?.some((l: string) => ['interesado', 'crear_confianza', 'crear_urgencia'].includes(l))) curr.sqls++;
-                if (c.labels?.some((l: string) => ['cita_agendada', 'cita_agendada_jess'].includes(l))) curr.citas++;
+                if (c.labels?.some((l: string) => ['interesado', 'desea_un_credito'].includes(l))) curr.sqls++;
+                if (c.labels?.some((l: string) => ['agenda_cita'].includes(l))) curr.citas++;
             }
         });
 
-        const fieldsDC = ['nombre_completo', 'celular', 'agencia', 'fecha_visita', 'hora_visita', 'correo', 'ciudad', 'campana', 'edad'];
-        const targetDC = kpiConversations.filter(c => c.labels?.some((l: string) => ['interesado', 'crear_confianza', 'crear_urgencia', 'cita_agendada', 'cita_agendada_jess'].includes(l)));
+        const fieldsDC = ['agente', 'nombre_completo', 'celular', 'agencia', 'fecha_visita', 'hora_visita', 'score_interes', 'canal', 'monto_operacion'];
+        const targetDC = kpiConversations.filter(c => c.labels?.some((l: string) => ['interesado', 'desea_un_credito', 'agenda_cita'].includes(l)));
         let completeDC = 0, incompleteDC = 0;
         const fieldCountsDC = fieldsDC.map(f => ({ field: f, count: 0 }));
 
@@ -226,24 +229,28 @@ export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek
         const newData = {
             kpis: {
                 totalLeads, leadsInteresados: interesadoCount, citasAgendadas: totalCitas,
-                deseaCreditoCount: 0, noCalifican: desinteresadoCount,
+                deseaCreditoCount: deseaCreditoCount, noCalifican: noCalifican,
                 tasaAgendamiento: totalLeads > 0 ? Math.round((totalCitas / totalLeads) * 100) : 0,
-                tasaDescarte: totalLeads > 0 ? Math.round((desinteresadoCount / totalLeads) * 100) : 0,
+                tasaDescarte: totalLeads > 0 ? Math.round((noCalifican / totalLeads) * 100) : 0,
                 tasaRespuesta: totalLeads > 0 ? Math.round((allConversations.filter(c => c.status !== 'new').length / totalLeads) * 100) : 0,
                 gananciaMensual, gananciaTotal
             },
             funnelData: [
-                { label: "Interesado", value: interesadoCount, percentage: totalLeads > 0 ? Math.round((interesadoCount / totalLeads) * 100) : 0, color: "hsl(224, 62%, 32%)" },
-                { label: "Crear Confianza", value: crearConfianzaCount, percentage: totalLeads > 0 ? Math.round((crearConfianzaCount / totalLeads) * 100) : 0, color: "hsl(142, 60%, 45%)" },
-                { label: "Crear Urgencia", value: crearUrgenciaCount, percentage: totalLeads > 0 ? Math.round((crearUrgenciaCount / totalLeads) * 100) : 0, color: "hsl(142, 60%, 55%)" },
-                { label: "Cita Agendada", value: citasAgendadas, percentage: totalLeads > 0 ? Math.round((citasAgendadas / totalLeads) * 100) : 0, color: "hsl(45, 93%, 58%)" },
-                { label: "Cita Agendada Jess", value: citasAgendadasJess, percentage: totalLeads > 0 ? Math.round((citasAgendadasJess / totalLeads) * 100) : 0, color: "hsl(35, 93%, 50%)" },
-                { label: "Desinteresado", value: desinteresadoCount, percentage: totalLeads > 0 ? Math.round((desinteresadoCount / totalLeads) * 100) : 0, color: "hsl(0, 70%, 60%)" },
-                { label: "Venta Exitosa", value: ventaExitosa, percentage: totalLeads > 0 ? Math.round((ventaExitosa / totalLeads) * 100) : 0, color: "hsl(160, 84%, 39%)" },
+                { label: "interesado", value: interesadoCount, percentage: totalLeads > 0 ? Math.round((interesadoCount / totalLeads) * 100) : 0, color: "hsl(224, 62%, 32%)" },
+                { label: "desea_un_credito", value: deseaCreditoCount, percentage: totalLeads > 0 ? Math.round((deseaCreditoCount / totalLeads) * 100) : 0, color: "hsl(210, 80%, 45%)" },
+                { label: "solicita_informacion", value: solicitaInformacionCount, percentage: totalLeads > 0 ? Math.round((solicitaInformacionCount / totalLeads) * 100) : 0, color: "hsl(260, 60%, 50%)" },
+                { label: "tiene_dudas", value: tieneDudasCount, percentage: totalLeads > 0 ? Math.round((tieneDudasCount / totalLeads) * 100) : 0, color: "hsl(280, 50%, 60%)" },
+                { label: "agenda_cita", value: agendaCitaCount, percentage: totalLeads > 0 ? Math.round((agendaCitaCount / totalLeads) * 100) : 0, color: "hsl(45, 93%, 58%)" },
+                { label: "no_aplica", value: noAplicaCount, percentage: totalLeads > 0 ? Math.round((noAplicaCount / totalLeads) * 100) : 0, color: "hsl(0, 70%, 60%)" },
+                { label: "no_tiene_joyas_oro", value: noTieneJoyasOroCount, percentage: totalLeads > 0 ? Math.round((noTieneJoyasOroCount / totalLeads) * 100) : 0, color: "hsl(340, 70%, 60%)" },
+                { label: "venta_exitosa", value: ventaExitosaCount, percentage: totalLeads > 0 ? Math.round((ventaExitosaCount / totalLeads) * 100) : 0, color: "hsl(160, 84%, 39%)" },
             ],
             recentAppointments, channelData, weeklyTrend,
             monthlyTrend: Array.from(monthlyTrendMap.entries()).map(([date, counts]) => ({ date, ...counts })),
-            disqualificationReasons: [{ reason: "Descartados", count: desinteresadoCount, percentage: 100 }],
+            disqualificationReasons: [
+                { reason: "no_aplica", count: noAplicaCount, percentage: noCalifican > 0 ? Math.round((noAplicaCount / noCalifican) * 100) : 0 },
+                { reason: "no_tiene_joyas_oro", count: noTieneJoyasOroCount, percentage: noCalifican > 0 ? Math.round((noTieneJoyasOroCount / noCalifican) * 100) : 0 },
+            ],
             dataCapture: {
                 completionRate: targetDC.length > 0 ? Math.round((completeDC / targetDC.length) * 100) : 0,
                 fieldRates: fieldCountsDC.map(f => ({ field: f.field, rate: targetDC.length > 0 ? Math.round((f.count / targetDC.length) * 100) : 0 })).sort((a, b) => b.rate - a.rate),
@@ -396,4 +403,3 @@ export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek
 
     return { loading, error, data, refetch };
 };
-

@@ -14,7 +14,7 @@ const DashboardLayout = () => {
             <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
                 <div className="flex justify-between items-center mb-8">
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight text-foreground">Implanta Dashboard</h1>
+                        <h1 className="text-3xl font-bold tracking-tight text-foreground">Monte Midas Dashboard</h1>
                         <p className="text-muted-foreground mt-1">Vista general del rendimiento y métricas clave</p>
                     </div>
                     <Button

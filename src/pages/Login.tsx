@@ -52,7 +52,7 @@ const Login = () => {
                             <Lock className="w-10 h-10 text-primary" />
                         </div>
                     </div>
-                    <CardTitle className="text-3xl font-bold tracking-tight text-primary">Implanta</CardTitle>
+                    <CardTitle className="text-3xl font-bold tracking-tight text-primary">Monte Midas</CardTitle>
                     <CardDescription className="text-slate-400 text-lg">
                         Dashboard de Control
                     </CardDescription>

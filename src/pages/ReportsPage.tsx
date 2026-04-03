@@ -31,32 +31,39 @@ const ReportsPage = () => {
 
     const getInboxDisplayName = (name: string) => {
         switch (name) {
-            case 'Implanta':
-                return 'Facebook - Implanta';
-            case 'implanta.clinic':
-                return 'Instagram - implanta.clinic';
-            case 'simplia Implanta':
-                return 'WhatsApp - simplia Implanta';
+            case 'Monte Midas':
+                return 'Facebook - Monte Midas';
+            case 'montemidas.ec':
+                return 'Instagram - montemidas.ec';
+            case 'simplia Monte Midas':
+                return 'WhatsApp - simplia Monte Midas';
             default:
                 return name;
         }
     };
 
     const labels = [
-        'interesado', 'crear_confianza', 'crear_urgencia', 'desinteresado', 'cita_agendada', 'cita_agendada_jess', 'venta_exitosa'
+        'agenda_cita', 'desea_un_credito', 'interesado', 'no_aplica', 'no_tiene_joyas_oro', 'solicita_informacion', 'tiene_dudas', 'venta_exitosa'
     ];
+
+    const formatLabel = (label: string) => {
+        return label;
+    };
 
     const fetchAllConversations = async (startDate: string, endDate: string, inboxId: string) => {
         const payloadParams: any = {
             page: 1,
             since: (new Date(startDate + "T00:00:00").getTime() / 1000).toString(),
-            // No enviamos 'until' al API porque Chatwoot filtraría leads históricos si tuvieron actividad posterior al 'endDate'
         };
         if (inboxId !== 'all') {
             payloadParams.inbox_id = inboxId;
         }
 
         const data = await chatwootService.getConversations(payloadParams);
+        if (!data || !data.payload) {
+            console.error("No data payload returned from Chatwoot");
+            return [];
+        }
 
         let allConvs = [...data.payload];
         const totalCount = data.meta.all_count || data.meta.count || allConvs.length;
@@ -64,7 +71,7 @@ const ReportsPage = () => {
 
         if (totalCount > 15 && data.payload.length > 0) {
             let cp = 2;
-            let maxAttempts = 200; // Incrementado masivamente para soportar barrer históricos sin truncamientos
+            let maxAttempts = 200;
             while (allConvs.length < totalCount && maxAttempts > 0) {
                 const nextParams = { ...payloadParams, page: cp };
                 const nextData = await chatwootService.getConversations(nextParams);
@@ -91,17 +98,34 @@ const ReportsPage = () => {
         const labelCounts: Record<string, any> = {};
         const labelCountsUnicas: Record<string, any> = {};
 
+        const detailedHeaders = [
+            "ID Conversacion",
+            "Nombre del Lead",
+            "Telefono/Celular",
+            "Canal",
+            "Etiquetas",
+            "Nombre Completo (Attr)",
+            "Fecha Visita",
+            "Hora Visita",
+            "Agencia",
+            "Enlace Chatwoot"
+        ];
+
+        if (!labels || !Array.isArray(labels)) return;
+
         labels.forEach(l => {
             labelCounts[l] = { total: 0 };
             labelCountsUnicas[l] = { total: 0 };
-            inboxes.forEach(inbox => {
-                labelCounts[l][inbox.id] = 0;
-                labelCountsUnicas[l][inbox.id] = 0;
-            });
+            if (inboxes && Array.isArray(inboxes)) {
+                inboxes.forEach(inbox => {
+                    labelCounts[l][inbox.id] = 0;
+                    labelCountsUnicas[l][inbox.id] = 0;
+                });
+            }
         });
 
         filteredConvs.forEach(conv => {
-            if (conv.labels) {
+            if (conv && conv.labels && Array.isArray(conv.labels)) {
                 conv.labels.forEach((l: string) => {
                     if (labelCounts[l]) {
                         labelCounts[l].total++;
@@ -116,7 +140,7 @@ const ReportsPage = () => {
         });
 
         createdConvs.forEach(conv => {
-            if (conv.labels) {
+            if (conv && conv.labels && Array.isArray(conv.labels)) {
                 conv.labels.forEach((l: string) => {
                     if (labelCountsUnicas[l]) {
                         labelCountsUnicas[l].total++;
@@ -143,7 +167,7 @@ const ReportsPage = () => {
         resumenData.push(headerRow1);
 
         Object.keys(labelCounts).forEach(label => {
-            let row = [label, labelCounts[label].total];
+            let row = [formatLabel(label), labelCounts[label].total];
             inboxes.forEach(inbox => {
                 row.push(labelCounts[label][inbox.id] || 0);
             });
@@ -172,48 +196,33 @@ const ReportsPage = () => {
 
         // --- SECCIÓN 2: DETALLE DE LEADS DE ACTIVIDADES ---
         const detalleData: any[][] = [];
-        const detailedHeaders = [
-            "ID Conversacion",
-            "Nombre del Lead",
-            "Telefono/Celular",
-            "Canal",
-            "Etiquetas",
-            "Nombre Completo (Attr)",
-            "Correo",
-            "Ciudad",
-            "Campaña",
-            "Edad",
-            "Fecha Visita",
-            "Hora Visita",
-            "Agencia",
-            "Enlace Chatwoot"
-        ];
         detalleData.push(detailedHeaders);
 
         filteredConvs.forEach(conv => {
             const cA = conv.meta?.sender?.custom_attributes || {};
             const vA = conv.custom_attributes || {};
 
-            const canal = getInboxDisplayName(inboxes.find(i => i.id === conv.inbox_id)?.name || '');
+            const inboxName = inboxes.find(i => i.id === conv.inbox_id)?.name || '';
+            const canalValue = cA.canal || vA.canal || inboxName || "";
 
-            let telefonoPrincipal = "";
-            if (canal.toLowerCase().includes('whatsapp')) {
-                telefonoPrincipal = conv.meta?.sender?.phone_number || cA.celular || vA.celular || "";
-            } else {
-                telefonoPrincipal = cA.celular || vA.celular || "";
+            const hasNativePhone = !!conv.meta?.sender?.phone_number;
+            const isWhatsApp = inboxName.toLowerCase().includes('whatsapp') ||
+                canalValue.toLowerCase().includes('whatsapp') ||
+                hasNativePhone;
+
+            const celularAttr = cA.celular || vA.celular || "";
+            let telefonoFinal = celularAttr;
+            if (!telefonoFinal && (isWhatsApp || hasNativePhone)) {
+                telefonoFinal = conv.meta?.sender?.phone_number || "";
             }
 
             const rowData = [
                 conv.id,
                 conv.meta?.sender?.name || 'Sin Nombre',
-                telefonoPrincipal,
-                canal,
+                telefonoFinal,
+                canalValue,
                 (conv.labels || []).join(' | '),
                 cA.nombre_completo || vA.nombre_completo || "",
-                cA.correo || vA.correo || conv.meta?.sender?.email || "",
-                cA.ciudad || vA.ciudad || "",
-                cA.campana || vA.campana || "",
-                cA.edad || vA.edad || "",
                 cA.fecha_visita || vA.fecha_visita || "",
                 cA.hora_visita || vA.hora_visita || "",
                 cA.agencia || vA.agencia || "",
@@ -267,25 +276,27 @@ const ReportsPage = () => {
             const cA = conv.meta?.sender?.custom_attributes || {};
             const vA = conv.custom_attributes || {};
 
-            const canal = getInboxDisplayName(inboxes.find(i => i.id === conv.inbox_id)?.name || '');
-            let telefonoPrincipal = "";
-            if (canal.toLowerCase().includes('whatsapp')) {
-                telefonoPrincipal = conv.meta?.sender?.phone_number || cA.celular || vA.celular || "";
-            } else {
-                telefonoPrincipal = cA.celular || vA.celular || "";
+            const inboxName = inboxes.find(i => i.id === conv.inbox_id)?.name || '';
+            const canalValue = cA.canal || vA.canal || inboxName || "";
+
+            const hasNativePhone = !!conv.meta?.sender?.phone_number;
+            const isWhatsApp = inboxName.toLowerCase().includes('whatsapp') ||
+                canalValue.toLowerCase().includes('whatsapp') ||
+                hasNativePhone;
+
+            const celularAttr = cA.celular || vA.celular || "";
+            let telefonoFinal = celularAttr;
+            if (!telefonoFinal && (isWhatsApp || hasNativePhone)) {
+                telefonoFinal = conv.meta?.sender?.phone_number || "";
             }
 
             const rowData = [
                 conv.id,
                 conv.meta?.sender?.name || 'Sin Nombre',
-                telefonoPrincipal,
-                canal,
+                telefonoFinal,
+                canalValue,
                 (conv.labels || []).join(' | '),
                 cA.nombre_completo || vA.nombre_completo || "",
-                cA.correo || vA.correo || conv.meta?.sender?.email || "",
-                cA.ciudad || vA.ciudad || "",
-                cA.campana || vA.campana || "",
-                cA.edad || vA.edad || "",
                 cA.fecha_visita || vA.fecha_visita || "",
                 cA.hora_visita || vA.hora_visita || "",
                 cA.agencia || vA.agencia || "",
@@ -322,23 +333,19 @@ const ReportsPage = () => {
         try {
             const allConvs = await fetchAllConversations(start, end, 'all');
             const startTimestamp = new Date(start + "T00:00:00").getTime();
-            // Para el final del día:
             const endTimestamp = new Date(end + "T23:59:59").getTime();
 
-            // Filtrar por ÚLTIMA ACTIVIDAD (timestamp)
             const filteredConvs = allConvs.filter(conv => {
                 const convTime = conv.timestamp * 1000;
                 return convTime >= startTimestamp && convTime <= endTimestamp;
             });
 
-            // Filtrar por FECHA DE CREACION para empatar con la vista "Conversaciones" de Chatwoot
             const createdConvs = allConvs.filter(conv => {
-                // If created_at is present, use it. Else fallback to timestamp
                 const creationTime = (conv.created_at || conv.timestamp) * 1000;
                 return creationTime >= startTimestamp && creationTime <= endTimestamp;
             });
 
-            generateExcel(filteredConvs, createdConvs, `Total Leads con Actividad (${type})`, `reporte_avance_${type}`, start, end);
+            generateExcel(filteredConvs, createdConvs, `Total Leads con Actividad (${type})`, `reporte_avance_monte_midas_${type}`, start, end);
             toast.success('Reporte exportado correctamente', { id: toastId });
         } catch (error) {
             console.error(error);
@@ -349,7 +356,6 @@ const ReportsPage = () => {
     };
 
     const handleDownloadToday = () => {
-        // Generar en formato YYYY-MM-DD
         const todayStr = new Date().toLocaleString('sv-SE', { timeZone: 'America/Guayaquil' }).split(' ')[0];
         downloadReport(todayStr, todayStr, 'hoy');
     };
@@ -361,7 +367,6 @@ const ReportsPage = () => {
         const firstDay = new Date(year, month, 1);
         const lastDay = new Date(year, month + 1, 0);
 
-        // Formatear localmente para evitar desfases de UTC
         const startStr = `${year}-${String(month + 1).padStart(2, '0')}-01`;
         const endStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
 
@@ -388,7 +393,7 @@ const ReportsPage = () => {
                     <CardHeader>
                         <CardTitle className="text-lg flex items-center gap-2 text-green-600">
                             <Activity className="w-5 h-5" />
-                            Reporte de Interacciones
+                            Reporte de Interacciones - Monte Midas
                         </CardTitle>
                         <CardDescription>
                             Filtra prospectos activos en este rango, incluyendo aquellos creados en el pasado pero que <strong>tuvieron actividad u otra etiqueta</strong> hoy.
@@ -397,7 +402,6 @@ const ReportsPage = () => {
                     <CardContent>
                         <div className="flex flex-col gap-8">
 
-                            {/* Opción 1: Reporte de Hoy */}
                             <div className="space-y-3 bg-slate-50/50 p-5 rounded-lg border border-border">
                                 <div>
                                     <h3 className="font-medium text-foreground flex items-center gap-2">
@@ -421,7 +425,6 @@ const ReportsPage = () => {
                                 </Button>
                             </div>
 
-                            {/* Opción 2: Reporte del Mes */}
                             <div className="space-y-4 bg-slate-50/50 p-5 rounded-lg border border-border">
                                 <div>
                                     <h3 className="font-medium text-foreground flex items-center gap-2">
@@ -429,7 +432,7 @@ const ReportsPage = () => {
                                         Reporte Mensual
                                     </h3>
                                     <p className="text-sm text-muted-foreground mt-1">
-                                        Genera un resumen acumulado de todo un mes. El negocio empezó en marzo de 2026.
+                                        Genera un resumen acumulado de todo un mes.
                                     </p>
                                 </div>
                                 <div className="flex flex-col sm:flex-row gap-4 items-end">
@@ -448,7 +451,7 @@ const ReportsPage = () => {
                                                     { v: "8", l: "Septiembre" }, { v: "9", l: "Octubre" },
                                                     { v: "10", l: "Noviembre" }, { v: "11", l: "Diciembre" }
                                                 ].map(m => (
-                                                    <SelectItem key={m.v} value={m.v} disabled={parseInt(m.v) < 2 && selectedYear === "2026"}>
+                                                    <SelectItem key={m.v} value={m.v}>
                                                         {m.l}
                                                     </SelectItem>
                                                 ))}
@@ -481,7 +484,6 @@ const ReportsPage = () => {
                                 </div>
                             </div>
 
-                            {/* Opción 3: Reporte Personalizado */}
                             <div className="space-y-4 bg-slate-50/50 p-5 rounded-lg border border-border">
                                 <div>
                                     <h3 className="font-medium text-foreground flex items-center gap-2">

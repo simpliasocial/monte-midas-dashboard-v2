@@ -67,13 +67,14 @@ const Index = () => {
       filtered.filter((c: any) => c.labels && c.labels.includes(label)).length;
 
     return [
-      { label: "Interesado", value: countLabel('interesado'), percentage: total > 0 ? Math.round((countLabel('interesado') / total) * 100) : 0, color: "hsl(224, 62%, 32%)" },
-      { label: "Crear Confianza", value: countLabel('crear_confianza'), percentage: total > 0 ? Math.round((countLabel('crear_confianza') / total) * 100) : 0, color: "hsl(142, 60%, 45%)" },
-      { label: "Crear Urgencia", value: countLabel('crear_urgencia'), percentage: total > 0 ? Math.round((countLabel('crear_urgencia') / total) * 100) : 0, color: "hsl(142, 60%, 55%)" },
-      { label: "Cita Agendada", value: countLabel('cita_agendada'), percentage: total > 0 ? Math.round((countLabel('cita_agendada') / total) * 100) : 0, color: "hsl(45, 93%, 58%)" },
-      { label: "Cita Agendada Jess", value: countLabel('cita_agendada_jess'), percentage: total > 0 ? Math.round((countLabel('cita_agendada_jess') / total) * 100) : 0, color: "hsl(35, 93%, 50%)" },
-      { label: "Desinteresado", value: countLabel('desinteresado'), percentage: total > 0 ? Math.round((countLabel('desinteresado') / total) * 100) : 0, color: "hsl(0, 70%, 60%)" },
-      { label: "Venta Exitosa", value: countLabel('venta_exitosa'), percentage: total > 0 ? Math.round((countLabel('venta_exitosa') / total) * 100) : 0, color: "hsl(160, 84%, 39%)" },
+      { label: "interesado", value: countLabel('interesado'), percentage: total > 0 ? Math.round((countLabel('interesado') / total) * 100) : 0, color: "hsl(224, 62%, 32%)" },
+      { label: "desea_un_credito", value: countLabel('desea_un_credito'), percentage: total > 0 ? Math.round((countLabel('desea_un_credito') / total) * 100) : 0, color: "hsl(210, 80%, 45%)" },
+      { label: "solicita_informacion", value: countLabel('solicita_informacion'), percentage: total > 0 ? Math.round((countLabel('solicita_informacion') / total) * 100) : 0, color: "hsl(260, 60%, 50%)" },
+      { label: "tiene_dudas", value: countLabel('tiene_dudas'), percentage: total > 0 ? Math.round((countLabel('tiene_dudas') / total) * 100) : 0, color: "hsl(280, 50%, 60%)" },
+      { label: "agenda_cita", value: countLabel('agenda_cita'), percentage: total > 0 ? Math.round((countLabel('agenda_cita') / total) * 100) : 0, color: "hsl(45, 93%, 58%)" },
+      { label: "no_aplica", value: countLabel('no_aplica'), percentage: total > 0 ? Math.round((countLabel('no_aplica') / total) * 100) : 0, color: "hsl(0, 70%, 60%)" },
+      { label: "no_tiene_joyas_oro", value: countLabel('no_tiene_joyas_oro'), percentage: total > 0 ? Math.round((countLabel('no_tiene_joyas_oro') / total) * 100) : 0, color: "hsl(340, 70%, 60%)" },
+      { label: "venta_exitosa", value: countLabel('venta_exitosa'), percentage: total > 0 ? Math.round((countLabel('venta_exitosa') / total) * 100) : 0, color: "hsl(160, 84%, 39%)" },
     ];
   })();
 
@@ -140,7 +141,7 @@ const Index = () => {
       </div>
 
       {/* Main KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-4 mb-8">
         <KPICard
           title="Total de Leads Entrantes"
           value={kpis.totalLeads.toLocaleString()}
@@ -150,17 +151,25 @@ const Index = () => {
           size="lg"
         />
         <KPICard
-          title="Leads Interesados"
+          title="Interesado"
           value={kpis.leadsInteresados.toLocaleString()}
           subtitle={periodLabel}
           icon={Target}
           size="lg"
         />
         <KPICard
-          title="Citas Agendadas"
+          title="Aggenda Cita"
           value={kpis.citasAgendadas.toLocaleString()}
           subtitle={periodLabel}
           icon={Calendar}
+          size="lg"
+        />
+        <KPICard
+          title="Desea un Crédito"
+          value={kpis.deseaCreditoCount.toLocaleString()}
+          subtitle={periodLabel}
+          icon={Zap}
+          variant="accent"
           size="lg"
         />
         <KPICard
@@ -236,7 +245,7 @@ const Index = () => {
             icon={CheckCircle}
           />
           <KPICard
-            title="Tasa de Agendamiento"
+            title="agenda_cita"
             value={`${kpis.tasaAgendamiento}%`}
             subtitle={periodLabel}
             icon={Calendar}
@@ -284,13 +293,14 @@ const Index = () => {
           <div className="mt-4 flex items-center justify-center gap-4 flex-wrap">
             {[
               { color: "bg-[hsl(224,62%,32%)]", label: "Leads (Total)" },
-              { color: "bg-[hsl(260,60%,50%)]", label: "Interesado" },
-              { color: "bg-[hsl(142,60%,45%)]", label: "Crear Confianza" },
-              { color: "bg-[hsl(142,60%,55%)]", label: "Crear Urgencia" },
-              { color: "bg-[hsl(45,93%,48%)]", label: "Cita Agendada" },
-              { color: "bg-[hsl(35,93%,50%)]", label: "Cita Agendada Jess" },
-              { color: "bg-[hsl(0,70%,60%)]", label: "Desinteresado" },
-              { color: "bg-[hsl(160,84%,39%)]", label: "Venta Exitosa" },
+              { color: "bg-[hsl(260,60%,50%)]", label: "interesado" },
+              { color: "bg-[hsl(210,80%,45%)]", label: "desea_un_credito" },
+              { color: "bg-[hsl(260,60%,50%)]", label: "solicita_informacion" },
+              { color: "bg-[hsl(280,50%,60%)]", label: "tiene_dudas" },
+              { color: "bg-[hsl(45,93%,48%)]", label: "agenda_cita" },
+              { color: "bg-[hsl(0,70%,60%)]", label: "no_aplica" },
+              { color: "bg-[hsl(340,70%,60%)]", label: "no_tiene_joyas_oro" },
+              { color: "bg-[hsl(160,84%,39%)]", label: "venta_exitosa" },
             ].map(({ color, label }) => (
               <div key={label} className="flex items-center gap-1.5">
                 <div className={`w-2.5 h-2.5 rounded-full ${color}`} />
@@ -367,7 +377,7 @@ const Index = () => {
       {/* Footer */}
       <footer className="mt-8 pt-6 border-t border-border text-center">
         <p className="text-sm text-muted-foreground">
-          Dashboard de Desempeño – Agente Funnel Implanta · Powered by{" "}
+          Dashboard de Desempeño – Agente Funnel Monte Midas · Powered by{" "}
           <span className="font-semibold text-primary">Simplia IA</span>
         </p>
       </footer>
