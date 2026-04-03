@@ -158,7 +158,7 @@ const Index = () => {
           size="lg"
         />
         <KPICard
-          title="Aggenda Cita"
+          title="Agenda Cita"
           value={kpis.citasAgendadas.toLocaleString()}
           subtitle={periodLabel}
           icon={Calendar}
