@@ -34,12 +34,17 @@ const Index = () => {
   const [selectedMonth, setSelectedMonth] = useState<Date | null>(null); // null means "All Time"
   const [selectedWeek, setSelectedWeek] = useState<string>("1");
   const [selectedChannel, setSelectedChannel] = useState<string>("all");
-  const { loading, error, data, refetch } = useDashboardData(selectedMonth, selectedWeek);
+  const { loading, error, data, refetch, isSyncing, fetchProgress } = useDashboardData(selectedMonth, selectedWeek);
 
-  if (loading) {
+  if (loading && data.kpis.totalLeads === 0) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <div className="text-sm font-medium text-muted-foreground animate-pulse">
+          {fetchProgress.current > 0
+            ? `Cargando histórico (Página ${fetchProgress.current})...`
+            : 'Inicializando panel...'}
+        </div>
       </div>
     );
   }
@@ -95,8 +100,14 @@ const Index = () => {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
         <div className="flex items-center gap-4">
-          <Button variant="outline" size="icon" onClick={refetch} title="Actualizar datos">
-            <RefreshCw className="h-4 w-4" />
+          {isSyncing && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground animate-pulse mr-2">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Sincronizando...
+            </div>
+          )}
+          <Button variant="outline" size="icon" onClick={refetch} title="Actualizar datos" disabled={isSyncing}>
+            <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
           </Button>
           <Select
             value={selectedMonth ? selectedMonth.getMonth().toString() : ALL_TIME_VALUE}

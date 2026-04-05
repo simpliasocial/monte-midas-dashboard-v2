@@ -1,13 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { chatwootService } from '../services/ChatwootService';
-
-const CACHE_KEY = 'monte_midas_dashboard_cache';
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-
-interface CachedData {
-    timestamp: number;
-    data: any;
-}
+import { useMemo } from 'react';
+import { useDashboardContext } from '../contexts/DashboardDataContext';
 
 const getDefaultData = () => ({
     kpis: {
@@ -39,38 +31,11 @@ const getDefaultData = () => ({
     conversationsWithChannel: [] as any[]
 });
 
-const loadFromCache = (): any | null => {
-    try {
-        const raw = localStorage.getItem(CACHE_KEY);
-        if (!raw) return null;
-        const cached: CachedData = JSON.parse(raw);
-        return cached.data;
-    } catch {
-        return null;
-    }
-};
-
-const saveToCache = (data: any) => {
-    try {
-        const cached: CachedData = { timestamp: Date.now(), data };
-        localStorage.setItem(CACHE_KEY, JSON.stringify(cached));
-    } catch {
-    }
-};
-
 export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek: string = "1") => {
-    const cachedData = useRef(loadFromCache());
-    const rawConversationsCache = useRef<any[]>([]);
-    const inboxesCache = useRef<any[]>([]);
-    const lastSyncRef = useRef<number>(0);
-    const isFetchingRef = useRef(false);
-    const abortControllerRef = useRef<AbortController | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [data, setData] = useState(cachedData.current || getDefaultData());
+    const { conversations, inboxes, loading, error, refetch, isSyncing, fetchProgress } = useDashboardContext();
 
-    const processAndSetData = useCallback((allConversations: any[], currentInboxes: any[]) => {
-        if (!allConversations.length || !currentInboxes.length) return;
+    const data = useMemo(() => {
+        if (!conversations.length || !inboxes.length) return getDefaultData();
 
         let globalStart: Date;
         let globalEnd: Date;
@@ -93,7 +58,7 @@ export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek
             trendEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
         }
 
-        const inboxMap = new Map(currentInboxes.map((inbox: any) => [inbox.id, inbox]));
+        const inboxMap = new Map(inboxes.map((inbox: any) => [inbox.id, inbox]));
 
         const getChannelName = (inboxId: number): string => {
             const inbox = inboxMap.get(inboxId);
@@ -112,7 +77,7 @@ export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek
             return isNaN(num) ? 0 : num;
         };
 
-        const kpiConversations = allConversations.filter(conv => {
+        const kpiConversations = conversations.filter(conv => {
             const convDate = new Date(conv.timestamp * 1000);
             return convDate >= globalStart && convDate <= globalEnd;
         });
@@ -127,13 +92,12 @@ export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek
         const noAplicaCount = countByLabel('no_aplica');
         const noTieneJoyasOroCount = countByLabel('no_tiene_joyas_oro');
         const agendaCitaCount = countByLabel('agenda_cita');
-        const ventaExitosaCount = countByLabel('venta_exitosa');
 
         const totalCitas = agendaCitaCount;
         const noCalifican = noAplicaCount + noTieneJoyasOroCount;
 
         let gananciaMensual = 0;
-        let gananciaTotal = allConversations.reduce((sum, conv) => {
+        let gananciaTotal = conversations.reduce((sum, conv) => {
             const cA = conv.meta?.sender?.custom_attributes || {};
             const vA = conv.custom_attributes || {};
             const m = parseMonto(cA.monto_operacion || vA.monto_operacion);
@@ -187,7 +151,7 @@ export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek
         const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
         const weeklyTrend = days.map(day => {
             const stats = { leads: 0, interesado: 0, desea_un_credito: 0, agenda_cita: 0, no_aplica: 0, venta_exitosa: 0 };
-            allConversations.filter(c => {
+            conversations.filter(c => {
                 const d = new Date(c.timestamp * 1000);
                 return d >= trendStart && d <= trendEnd && getWeekNum(d) === targetW && days[d.getDay()] === day;
             }).forEach(c => {
@@ -201,7 +165,7 @@ export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek
 
         const monthlyTrendMap = new Map();
         for (let i = 1; i <= 5; i++) monthlyTrendMap.set(`Sem ${i}`, { leads: 0, sqls: 0, citas: 0 });
-        allConversations.filter(c => {
+        conversations.filter(c => {
             const d = new Date(c.timestamp * 1000);
             return d >= trendStart && d <= trendEnd;
         }).forEach(c => {
@@ -226,13 +190,13 @@ export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek
             if (count === fieldsDC.length) completeDC++; else if (count > 0) incompleteDC++;
         });
 
-        const newData = {
+        return {
             kpis: {
                 totalLeads, leadsInteresados: interesadoCount, citasAgendadas: totalCitas,
                 deseaCreditoCount: deseaCreditoCount, noCalifican: noCalifican,
                 tasaAgendamiento: totalLeads > 0 ? Math.round((totalCitas / totalLeads) * 100) : 0,
                 tasaDescarte: totalLeads > 0 ? Math.round((noCalifican / totalLeads) * 100) : 0,
-                tasaRespuesta: totalLeads > 0 ? Math.round((allConversations.filter(c => c.status !== 'new').length / totalLeads) * 100) : 0,
+                tasaRespuesta: totalLeads > 0 ? Math.round((conversations.filter(c => c.status !== 'new').length / totalLeads) * 100) : 0,
                 gananciaMensual, gananciaTotal
             },
             funnelData: [
@@ -243,7 +207,7 @@ export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek
                 { label: "agenda_cita", value: agendaCitaCount, percentage: totalLeads > 0 ? Math.round((agendaCitaCount / totalLeads) * 100) : 0, color: "hsl(45, 93%, 58%)" },
                 { label: "no_aplica", value: noAplicaCount, percentage: totalLeads > 0 ? Math.round((noAplicaCount / totalLeads) * 100) : 0, color: "hsl(0, 70%, 60%)" },
                 { label: "no_tiene_joyas_oro", value: noTieneJoyasOroCount, percentage: totalLeads > 0 ? Math.round((noTieneJoyasOroCount / totalLeads) * 100) : 0, color: "hsl(340, 70%, 60%)" },
-                { label: "venta_exitosa", value: ventaExitosaCount, percentage: totalLeads > 0 ? Math.round((ventaExitosaCount / totalLeads) * 100) : 0, color: "hsl(160, 84%, 39%)" },
+                { label: "venta_exitosa", value: countByLabel('venta_exitosa'), percentage: totalLeads > 0 ? Math.round((countByLabel('venta_exitosa') / totalLeads) * 100) : 0, color: "hsl(160, 84%, 39%)" },
             ],
             recentAppointments, channelData, weeklyTrend,
             monthlyTrend: Array.from(monthlyTrendMap.entries()).map(([date, counts]) => ({ date, ...counts })),
@@ -260,146 +224,8 @@ export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek
             availableChannels: Array.from(channelCounts.keys()).sort(),
             conversationsWithChannel
         };
+    }, [conversations, inboxes, selectedMonth, selectedWeek]);
 
-        setData(newData);
-        saveToCache(newData);
-    }, [selectedMonth, selectedWeek]); // Re-run if these filters change
-
-    // Update when filters change via effect with a small artificial delay to show loader
-    useEffect(() => {
-        if (rawConversationsCache.current.length > 0 && inboxesCache.current.length > 0) {
-            setLoading(true);
-            setTimeout(() => {
-                processAndSetData(rawConversationsCache.current, inboxesCache.current);
-                setLoading(false);
-            }, 400); // 400ms loader to give visual feedback that the data has updated
-        }
-    }, [selectedMonth, selectedWeek, processAndSetData]);
-
-    const fetchData = async (isBackground = false) => {
-        if (isFetchingRef.current && !isBackground) return;
-        if (isBackground && isFetchingRef.current) return;
-        isFetchingRef.current = true;
-
-        if (abortControllerRef.current) {
-            abortControllerRef.current.abort();
-        }
-        abortControllerRef.current = new AbortController();
-        const signal = abortControllerRef.current.signal;
-
-        if (!isBackground && !cachedData.current && rawConversationsCache.current.length === 0) {
-            setLoading(true);
-        }
-
-        try {
-            setError(null);
-
-            const [firstPageResponse, inboxes] = await Promise.all([
-                chatwootService.getConversations({ status: 'all', page: 1, signal }),
-                chatwootService.getInboxes()
-            ]);
-
-            inboxesCache.current = inboxes;
-            let allConversationsRaw = rawConversationsCache.current;
-            const currentSyncTimestamp = Date.now() / 1000;
-
-            const fetchPageWithRetry = async (page: number, attempt = 0): Promise<any> => {
-                try {
-                    return await chatwootService.getConversations({ status: 'all', page, signal });
-                } catch (err: any) {
-                    if (attempt < 2) {
-                        await new Promise(res => setTimeout(res, 800 * (attempt + 1)));
-                        return fetchPageWithRetry(page, attempt + 1);
-                    }
-                    throw err;
-                }
-            };
-
-            if (allConversationsRaw.length === 0 || !isBackground) {
-                const firstPayload = Array.isArray(firstPageResponse) ? firstPageResponse : (firstPageResponse.payload || []);
-                allConversationsRaw = [...firstPayload];
-
-                if (firstPayload.length >= 25) {
-                    let currentPage = 2;
-                    let keepFetching = true;
-
-                    while (keepFetching) {
-                        console.log(`[PROGRESS] Cargando lote desde pág ${currentPage}...`);
-                        const results = await Promise.all([currentPage, currentPage + 1, currentPage + 2].map(p => fetchPageWithRetry(p)));
-
-                        let batchSize = 0;
-                        for (const r of results) {
-                            const pLoad = Array.isArray(r) ? r : (r?.payload || []);
-                            if (pLoad.length === 0) { keepFetching = false; break; }
-                            allConversationsRaw = [...allConversationsRaw, ...pLoad];
-                            batchSize += pLoad.length;
-                            if (pLoad.length < 25) { keepFetching = false; break; }
-                        }
-
-                        if (keepFetching) {
-                            currentPage += 3;
-                            await new Promise(res => setTimeout(res, 300));
-                        }
-                    }
-                }
-
-                processAndSetData(allConversationsRaw, inboxes);
-            } else {
-                const firstPayload = Array.isArray(firstPageResponse) ? firstPageResponse : (firstPageResponse.payload || []);
-                let newItems = [...firstPayload];
-                const oldest = firstPayload.length > 0 ? Math.min(...firstPayload.map((c: any) => c.timestamp)) : 0;
-
-                if (firstPayload.length >= 25 && oldest > lastSyncRef.current) {
-                    let cp = 2;
-                    while (true) {
-                        const r = await chatwootService.getConversations({ status: 'all', page: cp, signal });
-                        const p = Array.isArray(r) ? r : (r?.payload || []);
-                        if (p.length === 0) break;
-                        newItems = [...newItems, ...p];
-                        if (Math.min(...p.map((c: any) => c.timestamp)) <= lastSyncRef.current || p.length < 25) break;
-                        cp++;
-                        await new Promise(res => setTimeout(res, 200));
-                    }
-                }
-                const idMap = new Map(allConversationsRaw.map(c => [c.id, c]));
-                newItems.forEach(c => idMap.set(c.id, c));
-                allConversationsRaw = Array.from(idMap.values());
-                processAndSetData(allConversationsRaw, inboxes);
-            }
-
-            rawConversationsCache.current = allConversationsRaw;
-            lastSyncRef.current = currentSyncTimestamp;
-            setLoading(false);
-            setError(null);
-        } catch (err: any) {
-            if (err.name === 'CanceledError' || err.name === 'AbortError') {
-                return;
-            }
-            console.error('Error loading dashboard data:', err);
-            if (!cachedData.current) {
-                setError(`Error de servidor (500). Reintentando...`);
-            }
-            setLoading(false);
-        } finally {
-            isFetchingRef.current = false;
-        }
-    };
-
-    useEffect(() => {
-        // Initial fetch logic runs only once
-        fetchData(!!cachedData.current);
-        const interval = setInterval(() => fetchData(true), 15000);
-        return () => {
-            clearInterval(interval);
-            if (abortControllerRef.current) abortControllerRef.current.abort();
-        };
-        // Removed selectedMonth and selectedWeek from dependency arr so it does not fetch on filter change
-    }, []);
-
-    const refetch = () => {
-        cachedData.current = null;
-        fetchData(false);
-    };
-
-    return { loading, error, data, refetch };
+    return { loading, error, data, refetch, isSyncing, fetchProgress };
 };
+
