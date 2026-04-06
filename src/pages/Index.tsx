@@ -176,7 +176,7 @@ const Index = () => {
           size="lg"
         />
         <KPICard
-          title="Desea un Crédito"
+          title="Desea Realizar una Operación"
           value={kpis.deseaCreditoCount.toLocaleString()}
           subtitle={periodLabel}
           icon={Zap}
