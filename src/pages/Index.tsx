@@ -340,9 +340,8 @@ const Index = () => {
         icon={Database}
         className="mb-8"
       >
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
           <KPICard title="Tasa de Completitud" value={`${dataCapture.completionRate}%`} variant="success" size="sm" />
-          <KPICard title="Conversaciones Incompletas" value={dataCapture.incomplete.toString()} size="sm" />
           <KPICard title="Tiempo Promedio Captura" value="2.8 min" size="sm" />
         </div>
         <DataCaptureChart data={dataCapture} />
@@ -380,7 +379,7 @@ const Index = () => {
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-success" />
-            <span className="text-sm text-muted-foreground">Citas</span>
+            <span className="text-sm text-muted-foreground">Agenda Cita</span>
           </div>
         </div>
       </SectionCard>

@@ -21,7 +21,7 @@ const LABEL_COLORS: Record<string, { stroke: string; name: string }> = {
   interesado: { stroke: "hsl(260, 60%, 50%)", name: "interesado" },
   crear_confianza: { stroke: "hsl(142, 60%, 45%)", name: "crear_confianza" },
   crear_urgencia: { stroke: "hsl(142, 60%, 55%)", name: "crear_urgencia" },
-  cita_agendada: { stroke: "hsl(45, 93%, 48%)", name: "cita_agendada" },
+  agenda_cita: { stroke: "hsl(45, 93%, 48%)", name: "agenda_cita" },
   cita_agendada_jess: { stroke: "hsl(35, 93%, 50%)", name: "cita_agendada_jess" },
   desinteresado: { stroke: "hsl(0, 70%, 60%)", name: "desinteresado" },
   venta_exitosa: { stroke: "hsl(160, 84%, 39%)", name: "venta_exitosa" },

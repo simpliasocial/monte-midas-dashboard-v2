@@ -178,16 +178,32 @@ export const useDashboardData = (selectedMonth: Date | null = null, selectedWeek
             }
         });
 
-        const fieldsDC = ['agente', 'nombre_completo', 'celular', 'agencia', 'fecha_visita', 'hora_visita', 'score_interes', 'canal', 'monto_operacion'];
-        const targetDC = kpiConversations.filter(c => c.labels?.some((l: string) => ['interesado', 'desea_un_credito', 'agenda_cita'].includes(l)));
+        const fieldsDC = ['nombre_completo', 'agencia', 'fecha_visita', 'hora_visita', 'celular'];
+        const requiredFieldsDC = ['nombre_completo', 'agencia', 'fecha_visita', 'hora_visita'];
+        const targetDC = kpiConversations.filter(c => c.labels?.includes('agenda_cita'));
         let completeDC = 0, incompleteDC = 0;
         const fieldCountsDC = fieldsDC.map(f => ({ field: f, count: 0 }));
 
         targetDC.forEach(c => {
             const attrs = { ...c.custom_attributes, ...c.meta?.sender?.custom_attributes };
-            let count = 0;
-            fieldsDC.forEach(f => { if (attrs[f]) { count++; const item = fieldCountsDC.find(i => i.field === f); if (item) item.count++; } });
-            if (count === fieldsDC.length) completeDC++; else if (count > 0) incompleteDC++;
+
+            // Calculate completeness based on REQUIRED fields only
+            let reqCount = 0;
+            requiredFieldsDC.forEach(f => { if (attrs[f]) reqCount++; });
+
+            if (reqCount === requiredFieldsDC.length) {
+                completeDC++;
+            } else if (reqCount > 0) {
+                incompleteDC++;
+            }
+
+            // Calculate individual field rates for all tracking fields
+            fieldsDC.forEach(f => {
+                if (attrs[f]) {
+                    const item = fieldCountsDC.find(i => i.field === f);
+                    if (item) item.count++;
+                }
+            });
         });
 
         return {
