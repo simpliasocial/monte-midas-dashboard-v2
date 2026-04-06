@@ -118,7 +118,7 @@ export const chatwootService = {
                     _t: Date.now(),
                 },
                 signal: params.signal,
-                timeout: 15000 // 15 seconds timeout
+                timeout: 60000 // 60 seconds timeout
             });
             // Try to return .data.data (wrapped) or fallback to .data (direct)
             return response.data.data || response.data;
@@ -149,7 +149,7 @@ export const chatwootService = {
                 headers: {
                     api_access_token: API_TOKEN,
                 },
-                timeout: 10000
+                timeout: 30000
             });
             return response.data.payload;
         } catch (error) {

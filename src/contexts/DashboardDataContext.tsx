@@ -126,7 +126,7 @@ export const DashboardDataProvider: React.FC<{ children: React.ReactNode }> = ({
                 if (firstPayload.length >= 25) {
                     let page = 2;
                     let keepFetching = true;
-                    const BATCH_SIZE = 4;
+                    const BATCH_SIZE = 2; // Reduced to 2 to avoid timeout overloads
 
                     while (keepFetching) {
                         setFetchProgress(p => ({ ...p, current: page }));
@@ -158,6 +158,9 @@ export const DashboardDataProvider: React.FC<{ children: React.ReactNode }> = ({
                         if (!keepFetching) break;
                         page += BATCH_SIZE;
                         if (page > 150) break;
+
+                        // Add a small delay between batches to respect API limits
+                        await new Promise(resolve => setTimeout(resolve, 500));
                     }
                 }
 
